@@ -1,0 +1,930 @@
+openapi: 3.1.0
+info:
+  title: PluvIFFar API
+  description: |
+    API de gerenciamento do PluvIFFar (monitoramento pluviométrico).
+
+    ## Autenticação (sessão por cookie, sem JWT)
+    1. `GET /api/auth/csrf` → recebe o cookie `XSRF-TOKEN` (legível por JS) e o token no corpo.
+    2. `POST /api/auth/login` com o header `X-XSRF-TOKEN` → cria a sessão (cookie `SESSION`, HttpOnly).
+       O ID da sessão e o token CSRF são renovados: leia de novo o cookie `XSRF-TOKEN`.
+    3. `GET /api/auth/me` → usuário e perfil. 401 = sem sessão ou expirada (volte ao login).
+       Se `mustChangePassword = true`, só `/api/auth/**` funciona até `PUT /api/auth/password`.
+    4. `POST /api/auth/logout` → encerra a sessão.
+
+    Toda requisição POST/PUT/PATCH/DELETE precisa do header `X-XSRF-TOKEN` com o valor atual do cookie
+    `XSRF-TOKEN` (reemitido em toda resposta). No navegador, envie os cookies (`credentials: 'include'`).
+    A sessão expira após 30 min de inatividade.
+
+    ## Erros
+    Todo erro 4xx/5xx tem o corpo `ApiError`: `code` (estável, use no front), `message` (pt-BR, pronta para exibir),
+    `errors` (por campo, em `VALIDATION_ERROR`) e `traceId` (também no header `X-Trace-Id`).
+    Recurso de outro produtor responde 404 (não revela existência).
+
+    ## Paginação e período
+    Listas usam `page` (0-based), `size` (padrão 20, máx. 100) e `sort=campo,asc|desc`, e devolvem `PageResponse`.
+    Filtros de período usam `from`/`to` em ISO-8601 (ex.: `2026-11-10T00:00:00Z`).
+  version: v1
+servers:
+- url: http://localhost:38283
+  description: Generated server url
+tags:
+- name: Autenticação
+  description: "Sessão por cookie (SESSION) + CSRF. Fluxo: GET /csrf → POST /login\
+    \ → GET /me → POST /logout."
+- name: Usuários
+  description: Gestão de usuários — somente ADMIN. Não há auto-cadastro.
+paths:
+  /api/users/{id}:
+    get:
+      tags:
+      - Usuários
+      summary: Detalhar usuário
+      operationId: get
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: Usuário.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+        "404":
+          description: USER_NOT_FOUND.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: "ACCESS_DENIED (não é ADMIN), CSRF_TOKEN_INVALID ou PASSWORD_CHANGE_REQUIRED."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "400":
+          description: "VALIDATION_ERROR (com errors por campo), MALFORMED_REQUEST\
+            \ ou INVALID_PARAMETER."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: "UNAUTHENTICATED: sem sessão ou sessão expirada."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          description: INTERNAL_ERROR.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      security:
+      - sessionCookie: []
+    put:
+      tags:
+      - Usuários
+      summary: Editar usuário
+      description: "Substitui nome, email e perfil. Trocar o perfil encerra as sessõ\
+        es do usuário. O ADMIN não pode alterar o próprio perfil."
+      operationId: update
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserRequest"
+        required: true
+      responses:
+        "200":
+          description: Usuário atualizado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+        "404":
+          description: USER_NOT_FOUND.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: EMAIL_ALREADY_IN_USE ou CANNOT_CHANGE_OWN_ROLE.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: "ACCESS_DENIED (não é ADMIN), CSRF_TOKEN_INVALID ou PASSWORD_CHANGE_REQUIRED."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "400":
+          description: "VALIDATION_ERROR (com errors por campo), MALFORMED_REQUEST\
+            \ ou INVALID_PARAMETER."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: "UNAUTHENTICATED: sem sessão ou sessão expirada."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          description: INTERNAL_ERROR.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      security:
+      - sessionCookie: []
+        csrfHeader: []
+  /api/users/{id}/password:
+    put:
+      tags:
+      - Usuários
+      summary: Redefinir senha do usuário
+      description: Define uma senha provisória (troca obrigatória no próximo login)
+        e encerra todas as sessões do usuário.
+      operationId: resetPassword
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResetPasswordRequest"
+        required: true
+      responses:
+        "204":
+          description: Senha redefinida.
+        "404":
+          description: USER_NOT_FOUND.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: "ACCESS_DENIED (não é ADMIN), CSRF_TOKEN_INVALID ou PASSWORD_CHANGE_REQUIRED."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "400":
+          description: "VALIDATION_ERROR (com errors por campo), MALFORMED_REQUEST\
+            \ ou INVALID_PARAMETER."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: "UNAUTHENTICATED: sem sessão ou sessão expirada."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          description: INTERNAL_ERROR.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      security:
+      - sessionCookie: []
+        csrfHeader: []
+  /api/auth/password:
+    put:
+      tags:
+      - Autenticação
+      summary: Trocar a própria senha
+      description: "Confere a senha atual e grava a nova. Encerra as outras sessõ\
+        es do usuário (a atual continua) e, se a troca era obrigatória, libera o acesso\
+        \ ao resto da API."
+      operationId: changePassword
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangePasswordRequest"
+        required: true
+      responses:
+        "204":
+          description: Senha alterada.
+        "400":
+          description: "VALIDATION_ERROR, CURRENT_PASSWORD_INCORRECT ou NEW_PASSWORD_SAME_AS_CURRENT."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: "UNAUTHENTICATED: sem sessão ou sessão expirada."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: "ACCESS_DENIED, CSRF_TOKEN_INVALID ou PASSWORD_CHANGE_REQUIRED."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          description: INTERNAL_ERROR.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      security:
+      - sessionCookie: []
+        csrfHeader: []
+  /api/users:
+    get:
+      tags:
+      - Usuários
+      summary: Listar usuários
+      description: "Lista paginada com filtros opcionais. sort aceita: name, email,\
+        \ role, active, createdAt, updatedAt (ex.: sort=createdAt,desc). Padrão: name,asc."
+      operationId: list
+      parameters:
+      - name: search
+        in: query
+        description: Busca por parte do nome ou do email (sem diferenciar maiúsculas).
+        required: false
+        schema:
+          type: string
+        example: maria
+      - name: role
+        in: query
+        description: Filtra por perfil.
+        required: false
+        schema:
+          type: string
+          description: "Perfil do usuário. ADMIN: superusuário (gerencia usuários\
+            \ e vê tudo). PRODUCER: gerencia apenas os próprios gateways e estaçõ\
+            es."
+          enum:
+          - ADMIN
+          - PRODUCER
+      - name: active
+        in: query
+        description: Filtra por ativo/desativado.
+        required: false
+        schema:
+          type: boolean
+      - name: page
+        in: query
+        description: Zero-based page index (0..N)
+        required: false
+        schema:
+          type: integer
+          default: 0
+          minimum: 0
+      - name: size
+        in: query
+        description: The size of the page to be returned
+        required: false
+        schema:
+          type: integer
+          default: 20
+          minimum: 1
+      - name: sort
+        in: query
+        description: "Sorting criteria in the format: property,(asc|desc). Default\
+          \ sort order is ascending. Multiple sort criteria are supported."
+        required: false
+        schema:
+          type: array
+          default:
+          - "name,ASC"
+          items:
+            type: string
+      responses:
+        "200":
+          description: Página de usuários.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageResponseUserResponse"
+        "403":
+          description: "ACCESS_DENIED (não é ADMIN), CSRF_TOKEN_INVALID ou PASSWORD_CHANGE_REQUIRED."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "400":
+          description: "VALIDATION_ERROR (com errors por campo), MALFORMED_REQUEST\
+            \ ou INVALID_PARAMETER."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: "UNAUTHENTICATED: sem sessão ou sessão expirada."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          description: INTERNAL_ERROR.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      security:
+      - sessionCookie: []
+    post:
+      tags:
+      - Usuários
+      summary: Cadastrar usuário
+      description: Cria o usuário com senha provisória; ele precisa trocá-la no primeiro
+        login.
+      operationId: create
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateUserRequest"
+        required: true
+      responses:
+        "201":
+          description: Usuário criado (header Location aponta para ele).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+        "409":
+          description: EMAIL_ALREADY_IN_USE.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: "ACCESS_DENIED (não é ADMIN), CSRF_TOKEN_INVALID ou PASSWORD_CHANGE_REQUIRED."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "400":
+          description: "VALIDATION_ERROR (com errors por campo), MALFORMED_REQUEST\
+            \ ou INVALID_PARAMETER."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: "UNAUTHENTICATED: sem sessão ou sessão expirada."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          description: INTERNAL_ERROR.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      security:
+      - sessionCookie: []
+        csrfHeader: []
+  /api/auth/logout:
+    post:
+      tags:
+      - Autenticação
+      summary: Logout
+      description: "Invalida a sessão e limpa os cookies SESSION e XSRF-TOKEN. Requer\
+        \ o header X-XSRF-TOKEN. Idempotente: sem sessão, também responde 204."
+      operationId: logout
+      responses:
+        "204":
+          description: Sessão encerrada.
+        "403":
+          description: "CSRF_TOKEN_INVALID: header X-XSRF-TOKEN ausente ou diferente\
+            \ do cookie."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          description: INTERNAL_ERROR.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      security:
+      - csrfHeader: []
+  /api/auth/login:
+    post:
+      tags:
+      - Autenticação
+      summary: Login
+      description: "Autentica por email e senha e cria a sessão (cookie SESSION, HttpOnly).\
+        \ Requer o header X-XSRF-TOKEN. O ID da sessão e o token CSRF são renovados:\
+        \ use o novo cookie XSRF-TOKEN a partir daqui. Se mustChangePassword = true,\
+        \ leve o usuário à troca de senha."
+      operationId: login
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+        required: true
+      responses:
+        "200":
+          description: Login efetuado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CurrentUserResponse"
+        "401":
+          description: "INVALID_CREDENTIALS: email ou senha inválidos (mensagem ú\
+            nica, não revela se o usuário existe)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "400":
+          description: "VALIDATION_ERROR (com errors por campo), MALFORMED_REQUEST\
+            \ ou INVALID_PARAMETER."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: "CSRF_TOKEN_INVALID: header X-XSRF-TOKEN ausente ou diferente\
+            \ do cookie."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          description: INTERNAL_ERROR.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      security:
+      - csrfHeader: []
+  /api/users/{id}/status:
+    patch:
+      tags:
+      - Usuários
+      summary: Ativar/desativar usuário
+      description: Desativar impede o login e encerra imediatamente todas as sessões
+        do usuário. O ADMIN não pode desativar a si mesmo.
+      operationId: updateStatus
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateUserStatusRequest"
+        required: true
+      responses:
+        "200":
+          description: Status atualizado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+        "404":
+          description: USER_NOT_FOUND.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: CANNOT_DEACTIVATE_SELF.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: "ACCESS_DENIED (não é ADMIN), CSRF_TOKEN_INVALID ou PASSWORD_CHANGE_REQUIRED."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "400":
+          description: "VALIDATION_ERROR (com errors por campo), MALFORMED_REQUEST\
+            \ ou INVALID_PARAMETER."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: "UNAUTHENTICATED: sem sessão ou sessão expirada."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          description: INTERNAL_ERROR.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      security:
+      - sessionCookie: []
+        csrfHeader: []
+  /api/auth/me:
+    get:
+      tags:
+      - Autenticação
+      summary: Usuário logado
+      description: "Dados e perfil do usuário da sessão. O front não lê o cookie HttpOnly,\
+        \ então usa este endpoint para saber se há sessão: 401 = sem sessão/expirada."
+      operationId: me
+      responses:
+        "200":
+          description: Usuário logado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CurrentUserResponse"
+        "401":
+          description: "UNAUTHENTICATED: sem sessão ou sessão expirada."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: ACCESS_DENIED ou PASSWORD_CHANGE_REQUIRED.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          description: INTERNAL_ERROR.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      security:
+      - sessionCookie: []
+  /api/auth/csrf:
+    get:
+      tags:
+      - Autenticação
+      summary: Obter token CSRF
+      description: "Emite o cookie XSRF-TOKEN e devolve o mesmo valor no corpo. Chame\
+        \ ao abrir a aplicação, antes do login. O cookie é reemitido em toda resposta,\
+        \ inclusive quando o token é renovado após o login."
+      operationId: csrf
+      responses:
+        "200":
+          description: Token emitido.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CsrfTokenResponse"
+        "500":
+          description: INTERNAL_ERROR.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      security: []
+components:
+  schemas:
+    UpdateUserRequest:
+      type: object
+      description: "Edição de usuário pelo ADMIN (substitui nome, email e perfil).\
+        \ Trocar o perfil encerra as sessões ativas do usuário."
+      properties:
+        name:
+          type: string
+          description: Nome.
+          example: Maria da Silva
+          maxLength: 120
+          minLength: 0
+        email:
+          type: string
+          format: email
+          description: "Email (único, sem diferenciar maiúsculas)."
+          example: maria@exemplo.com.br
+          maxLength: 254
+          minLength: 0
+        role:
+          type: string
+          description: Perfil.
+          enum:
+          - ADMIN
+          - PRODUCER
+          example: PRODUCER
+      required:
+      - email
+      - name
+      - role
+    ApiError:
+      description: Corpo padrão de toda resposta de erro (4xx/5xx).
+      properties:
+        code:
+          type: string
+          description: Código estável do erro (enum ErrorCode); use-o no frontend
+            para decidir o comportamento.
+          example: VALIDATION_ERROR
+        message:
+          type: string
+          description: Mensagem pronta para exibir ao usuário (pt-BR).
+          example: Há campos inválidos na requisição.
+        errors:
+          type: array
+          description: Erros por campo (apenas em VALIDATION_ERROR; vazio nos demais).
+          items:
+            $ref: "#/components/schemas/FieldError"
+        traceId:
+          type: string
+          description: Identificador da requisição (também no header X-Trace-Id);
+            informe-o ao reportar problemas.
+          example: 6f1c2a9e4b7d4e0f9a3b1c2d3e4f5a6b
+      required:
+      - code
+      - errors
+      - message
+      - traceId
+    FieldError:
+      description: Erro de validação de um campo.
+      properties:
+        field:
+          type: string
+          description: Nome do campo (ou parâmetro) inválido.
+          example: email
+        message:
+          type: string
+          description: Mensagem para o usuário (pt-BR).
+          example: Informe um email válido.
+      required:
+      - field
+      - message
+    UserResponse:
+      type: object
+      description: Dados de um usuário (nunca inclui a senha).
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Identificador do usuário.
+          example: 019a6f3e-8b1c-7d2e-9f40-1a2b3c4d5e6f
+        name:
+          type: string
+          description: Nome.
+          example: Maria da Silva
+        email:
+          type: string
+          description: Email (sempre em minúsculas).
+          example: maria@exemplo.com.br
+        role:
+          type: string
+          description: Perfil.
+          enum:
+          - ADMIN
+          - PRODUCER
+          example: PRODUCER
+        active:
+          type: boolean
+          description: Se o usuário pode fazer login.
+          example: true
+        mustChangePassword:
+          type: boolean
+          description: Se precisa trocar a senha antes de usar a plataforma.
+          example: false
+        createdAt:
+          type: string
+          format: date-time
+          description: "Criação (ISO-8601, UTC)."
+          example: 2026-11-10T12:00:00Z
+        updatedAt:
+          type: string
+          format: date-time
+          description: "Última alteração (ISO-8601, UTC)."
+          example: 2026-11-10T12:00:00Z
+      required:
+      - active
+      - createdAt
+      - email
+      - id
+      - mustChangePassword
+      - name
+      - role
+      - updatedAt
+    ResetPasswordRequest:
+      type: object
+      description: Redefinição de senha pelo ADMIN. A nova senha é provisória (troca
+        obrigatória no próximo login) e todas as sessões do usuário são encerradas.
+      properties:
+        newPassword:
+          type: string
+          description: Nova senha provisória (8 a 72 caracteres).
+          example: novaProvisoria123
+          maxLength: 72
+          minLength: 8
+      required:
+      - newPassword
+    ChangePasswordRequest:
+      type: object
+      description: Troca da própria senha. Encerra as outras sessões do usuário e
+        libera o acesso quando a troca era obrigatória.
+      properties:
+        currentPassword:
+          type: string
+          description: Senha atual.
+          example: senhaProvisoria123
+          minLength: 1
+        newPassword:
+          type: string
+          description: "Nova senha (8 a 72 caracteres, diferente da atual)."
+          example: minhaNovaSenha456
+          maxLength: 72
+          minLength: 8
+      required:
+      - currentPassword
+      - newPassword
+    CreateUserRequest:
+      type: object
+      description: "Cadastro de usuário pelo ADMIN. A senha é provisória: o usuário\
+        \ deve trocá-la no primeiro login."
+      properties:
+        name:
+          type: string
+          description: Nome.
+          example: Maria da Silva
+          maxLength: 120
+          minLength: 0
+        email:
+          type: string
+          format: email
+          description: "Email (único, sem diferenciar maiúsculas)."
+          example: maria@exemplo.com.br
+          maxLength: 254
+          minLength: 0
+        role:
+          type: string
+          description: Perfil.
+          enum:
+          - ADMIN
+          - PRODUCER
+          example: PRODUCER
+        password:
+          type: string
+          description: Senha provisória (8 a 72 caracteres).
+          example: senhaProvisoria123
+          maxLength: 72
+          minLength: 8
+      required:
+      - email
+      - name
+      - password
+      - role
+    LoginRequest:
+      type: object
+      description: Credenciais de login.
+      properties:
+        email:
+          type: string
+          description: Email do usuário.
+          example: maria@exemplo.com.br
+          minLength: 1
+        password:
+          type: string
+          description: Senha.
+          example: minhaSenha123
+          minLength: 1
+      required:
+      - email
+      - password
+    CurrentUserResponse:
+      type: object
+      description: Usuário logado.
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: Identificador do usuário.
+          example: 019a6f3e-8b1c-7d2e-9f40-1a2b3c4d5e6f
+        name:
+          type: string
+          description: Nome.
+          example: Maria da Silva
+        email:
+          type: string
+          description: Email.
+          example: maria@exemplo.com.br
+        role:
+          type: string
+          description: Perfil (define as áreas que o front libera).
+          enum:
+          - ADMIN
+          - PRODUCER
+          example: PRODUCER
+        mustChangePassword:
+          type: boolean
+          description: "Se true, o front deve levar o usuário à troca de senha: o\
+            \ resto da API responde 403 PASSWORD_CHANGE_REQUIRED até a troca."
+          example: false
+      required:
+      - email
+      - id
+      - mustChangePassword
+      - name
+      - role
+    UpdateUserStatusRequest:
+      type: object
+      description: Ativa ou desativa um usuário. Desativar encerra imediatamente todas
+        as sessões dele.
+      properties:
+        active:
+          type: boolean
+          description: true = ativo; false = desativado (não consegue fazer login).
+          example: false
+      required:
+      - active
+    PageResponseUserResponse:
+      type: object
+      description: "Página de resultados. Parâmetros: page (0-based), size (padrã\
+        o 20, máx. 100), sort=campo,asc|desc."
+      properties:
+        content:
+          type: array
+          description: Itens da página.
+          items:
+            $ref: "#/components/schemas/UserResponse"
+        page:
+          type: integer
+          format: int32
+          description: Número da página (começa em 0).
+          example: 0
+        size:
+          type: integer
+          format: int32
+          description: Tamanho da página.
+          example: 20
+        totalElements:
+          type: integer
+          format: int64
+          description: Total de itens.
+          example: 42
+        totalPages:
+          type: integer
+          format: int32
+          description: Total de páginas.
+          example: 3
+      required:
+      - content
+      - page
+      - size
+      - totalElements
+      - totalPages
+    CsrfTokenResponse:
+      type: object
+      description: "Token CSRF. O mesmo valor fica no cookie XSRF-TOKEN (legível por\
+        \ JavaScript), reemitido a cada resposta."
+      properties:
+        headerName:
+          type: string
+          description: Header onde o token deve ser enviado em POST/PUT/PATCH/DELETE.
+          example: X-XSRF-TOKEN
+        token:
+          type: string
+          description: Valor do token.
+          example: 3f0e5a2c-1b4d-4e6f-8a9b-0c1d2e3f4a5b
+      required:
+      - headerName
+      - token
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      description: "Cookie de sessão (HttpOnly), criado no login."
+      name: SESSION
+      in: cookie
+    csrfHeader:
+      type: apiKey
+      description: "Token CSRF: valor do cookie XSRF-TOKEN. Obrigatório em POST/PUT/PATCH/DELETE."
+      name: X-XSRF-TOKEN
+      in: header

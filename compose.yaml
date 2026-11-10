@@ -1,0 +1,16 @@
+# Banco de dev: docker compose up -d
+services:
+  db:
+    image: timescale/timescaledb:latest-pg18
+    command: ["postgres", "-c", "timescaledb.license=apache"] # igual à produção (sem compressão)
+    environment:
+      POSTGRES_DB: pluviffar
+      POSTGRES_USER: pluviffar
+      POSTGRES_PASSWORD: pluviffar
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql
+
+volumes:
+  pgdata:
