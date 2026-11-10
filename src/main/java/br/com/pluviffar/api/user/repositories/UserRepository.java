@@ -1,5 +1,6 @@
 package br.com.pluviffar.api.user.repositories;
 
+import br.com.pluviffar.api.shared.web.QuerySupport;
 import br.com.pluviffar.api.user.entities.Role;
 import br.com.pluviffar.api.user.entities.User;
 import org.springframework.data.jpa.domain.Specification;
@@ -8,7 +9,6 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -24,12 +24,11 @@ public interface UserRepository extends JpaRepository<User, UUID>, JpaSpecificat
     /** Filtros opcionais da listagem: busca em nome/email, role e ativo. */
     static Specification<User> filter(String search, Role role, Boolean active) {
         List<Specification<User>> specs = new ArrayList<>();
-        if (search != null && !search.isBlank()) {
-            String pattern = "%" + search.trim().toLowerCase(Locale.ROOT)
-                    .replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%";
+        String pattern = QuerySupport.containsPattern(search);
+        if (pattern != null) {
             specs.add((root, query, cb) -> cb.or(
-                    cb.like(cb.lower(root.get("name")), pattern, '\\'),
-                    cb.like(root.get("email"), pattern, '\\')));
+                    cb.like(cb.lower(root.get("name")), pattern, QuerySupport.LIKE_ESCAPE),
+                    cb.like(root.get("email"), pattern, QuerySupport.LIKE_ESCAPE)));
         }
         if (role != null) {
             specs.add((root, query, cb) -> cb.equal(root.get("role"), role));

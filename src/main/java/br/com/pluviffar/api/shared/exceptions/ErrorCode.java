@@ -16,6 +16,8 @@ public enum ErrorCode {
     INVALID_PARAMETER("error.invalid-parameter", HttpStatus.BAD_REQUEST),
     CURRENT_PASSWORD_INCORRECT("error.current-password-incorrect", HttpStatus.BAD_REQUEST),
     NEW_PASSWORD_SAME_AS_CURRENT("error.new-password-same-as-current", HttpStatus.BAD_REQUEST),
+    OWNER_REQUIRED("error.owner-required", HttpStatus.BAD_REQUEST),
+    INVALID_OWNER("error.invalid-owner", HttpStatus.BAD_REQUEST),
 
     // 401
     UNAUTHENTICATED("error.unauthenticated", HttpStatus.UNAUTHORIZED),
@@ -29,6 +31,8 @@ public enum ErrorCode {
     // 404
     RESOURCE_NOT_FOUND("error.resource-not-found", HttpStatus.NOT_FOUND),
     USER_NOT_FOUND("error.user-not-found", HttpStatus.NOT_FOUND),
+    GATEWAY_NOT_FOUND("error.gateway-not-found", HttpStatus.NOT_FOUND),
+    STATION_NOT_FOUND("error.station-not-found", HttpStatus.NOT_FOUND),
 
     // 405 / 415
     METHOD_NOT_ALLOWED("error.method-not-allowed", HttpStatus.METHOD_NOT_ALLOWED),
@@ -38,6 +42,8 @@ public enum ErrorCode {
     EMAIL_ALREADY_IN_USE("error.email-already-in-use", HttpStatus.CONFLICT),
     CANNOT_CHANGE_OWN_ROLE("error.cannot-change-own-role", HttpStatus.CONFLICT),
     CANNOT_DEACTIVATE_SELF("error.cannot-deactivate-self", HttpStatus.CONFLICT),
+    HARDWARE_ID_ALREADY_REGISTERED("error.hardware-id-already-registered", HttpStatus.CONFLICT),
+    GATEWAY_HAS_ACTIVE_STATIONS("error.gateway-has-active-stations", HttpStatus.CONFLICT),
     DATA_CONFLICT("error.data-conflict", HttpStatus.CONFLICT),
 
     // 500

@@ -6,6 +6,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 
 import java.util.Optional;
+import java.util.UUID;
 
 /** Acesso ao usuário autenticado da requisição atual. */
 public final class CurrentUser {
@@ -23,5 +24,14 @@ public final class CurrentUser {
 
     public static AuthenticatedUser get() {
         return find().orElseThrow(() -> new BusinessException(ErrorCode.UNAUTHENTICATED));
+    }
+
+    /**
+     * Escopo de posse da requisição: o ID do usuário quando ele é PRODUCER (só enxerga o que é dele)
+     * ou null quando é ADMIN (sem restrição). Use em toda consulta de gateway/estação/telemetria.
+     */
+    public static UUID ownerScope() {
+        AuthenticatedUser user = get();
+        return user.isAdmin() ? null : user.getId();
     }
 }

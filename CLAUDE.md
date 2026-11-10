@@ -166,7 +166,7 @@ Resumo: schema `dados` com `estacoes` (PK = chip ID em hex, auto-cadastrada pelo
 
 ## Convenções de código (padrões herdados do meu projeto gestaovagas — ajustar se quiser)
 
-- Organização **por módulo** em inglês (ex.: `user`, `auth`, `gateway`, `station`, `telemetry`, `publicdata`), cada um com `entities`, `repositories`, `dtos`, `controllers` e `useCases` (um use case por ação, ex. `CreateUserUseCase`). Transversais em `shared` (`exceptions`, `web`, `config`); segurança em `auth.config`/`auth.security`.
+- Organização **por módulo** em inglês (ex.: `user`, `auth`, `gateway`, `station`, `telemetry`, `publicdata`), cada um com `entities`, `repositories`, `dtos`, `controllers` e `useCases` (um use case por ação, ex. `CreateUserUseCase`). Transversais em `shared` (`exceptions`, `web` — `PageResponse`, `QuerySupport` para busca LIKE e whitelist de `sort` —, `config`); segurança em `auth.config`/`auth.security`.
 - Entidades atuais: `user.entities.User`/`Role`, `gateway.entities.Gateway`, `station.entities.Station` (`assignGateway()` mantém `owner` = dono do gateway), e somente leitura (`@Immutable`) `telemetry.entities.Reading`/`DeviceStatus` (chave `TelemetryId` = station_id + measured_at) e `ConfigReport`. Soft delete: filtrar `deletedAt IS NULL` nas consultas.
 - Lombok onde reduzir boilerplate; Bean Validation (`jakarta.validation`) nos DTOs de entrada.
 - Mensagens ao usuário em **pt-BR** via `MessageSource` (`messages.properties`).
@@ -192,6 +192,16 @@ Dois perfis (roles):
 | `PRODUCER` | CRUD completo dos **próprios** gateways e estações, e acesso aos dados deles. Define se cada estação é pública. |
 
 - Regra central: todo endpoint de gateway/estação/leitura filtra por dono quando o usuário é `PRODUCER`; `ADMIN` passa direto. Checar posse no backend (use case ou `@PreAuthorize` com verificação de ownership) — nunca confiar em id vindo do cliente. Recurso de outro produtor → 404 (não revelar existência).
+- **Como está implementado (seguir o padrão nos próximos módulos, ex. leituras):** `CurrentUser.ownerScope()` devolve o ID do usuário (PRODUCER) ou `null` (ADMIN); os repositórios expõem `visible(ownerScope, includeDeleted)` (Specification) e toda busca passa por ela. `Find*UseCase.getActiveOrThrow(id)` é o ponto único de "buscar com posse ou 404" — reutilize-o (ex.: criar estação valida o gateway por ele).
+
+### Gateways e estações (`/api/gateways`, `/api/stations`) — implementado
+
+- CRUD completo (POST 201 + Location, GET paginado, GET/{id}, PUT/{id}, DELETE/{id} = soft delete) para PRODUCER (só os próprios) e ADMIN (todos).
+- Dono: PRODUCER é sempre dono do que cadastra (`ownerId` de outro → 403). ADMIN informa `ownerId` de um PRODUCER ativo (`OWNER_REQUIRED`/`INVALID_OWNER`) e pode **transferir** o gateway no PUT — o banco propaga o dono para as estações (FK composta). A estação herda o dono do gateway (`Station.assignGateway`).
+- `hardwareId` (chip ID): normalizado para minúsculas, padrão `^[a-z0-9-]{1,32}$`, **imutável** e único entre os não excluídos (409 `HARDWARE_ID_ALREADY_REGISTERED`, mesmo entre produtores diferentes: é o mesmo equipamento físico).
+- Exclusão: lógica (`deleted_at`); libera o chip para novo cadastro. Gateway com estação ativa não pode ser excluído (409 `GATEWAY_HAS_ACTIVE_STATIONS`). Estação excluída tem `is_public` desligado.
+- ADMIN: filtros `ownerId` e `includeDeleted` nas listagens e vê excluídos no detalhe (mas não altera). Para PRODUCER esses filtros são ignorados.
+- Estação: latitude/longitude juntas ou nenhuma (`locationComplete`); pública exige localização (`publicWithLocation`). O `StationResponse` traz dados do dono — **não usar na área pública** (criar DTO próprio).
 - Três áreas (protótipos): **Admin**, **Produtor** e **Pública**. A área **pública** (sem login) expõe somente estações marcadas como públicas pelo dono: dados de chuva e localização, nunca dados do dono. Endpoints públicos ficam sob um prefixo próprio (ex.: `/api/public/**`) liberado no `SecurityFilterChain`.
 - TODO: o TCC 4 (análise/predição) vai consumir dados pela API ou direto no banco?
 
@@ -279,4 +289,4 @@ O frontend será construído depois, também com o Claude, a partir do contrato 
 - Antes de mudanças grandes (novo módulo, mudança de schema, auth), propor um plano curto.
 - Mudança no protocolo MQTT ou no schema → atualizar este arquivo (ou `docs/`) no mesmo commit.
 - Conversar comigo e comentar em português; código, schema e contratos em inglês (ver "Idioma").
-- Feito: schema (V1/V2), entidades JPA, módulo de usuários, auth por sessão + CSRF, infra de erros, contrato OpenAPI. Próximo: módulos `gateway` e `station` (CRUD do produtor com checagem de posse) e área pública.
+- Feito: schema (V1/V2), entidades JPA, módulo de usuários, auth por sessão + CSRF, infra de erros, contrato OpenAPI, CRUD de gateways e estações com checagem de posse. Próximo: consulta de leituras/status (séries temporais com `time_bucket`, filtros `from`/`to`) e área pública (`/api/public/**`).

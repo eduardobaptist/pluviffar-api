@@ -26,7 +26,7 @@ info:
     Filtros de período usam `from`/`to` em ISO-8601 (ex.: `2026-11-10T00:00:00Z`).
   version: v1
 servers:
-- url: http://localhost:38283
+- url: http://localhost:45257
   description: Generated server url
 tags:
 - name: Autenticação
@@ -34,6 +34,12 @@ tags:
     \ → GET /me → POST /logout."
 - name: Usuários
   description: Gestão de usuários — somente ADMIN. Não há auto-cadastro.
+- name: Gateways
+  description: Gateways do produtor. PRODUCER gerencia só os próprios (os de outro
+    produtor respondem 404); ADMIN gerencia todos.
+- name: Estações
+  description: Estações (pluviômetros) do produtor. PRODUCER gerencia só as próprias
+    (as de outro produtor respondem 404); ADMIN gerencia todas.
 paths:
   /api/users/{id}:
     get:
@@ -200,6 +206,342 @@ paths:
                 $ref: "#/components/schemas/ApiError"
         "401":
           description: "UNAUTHENTICATED: sem sessão ou sessão expirada."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          description: INTERNAL_ERROR.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      security:
+      - sessionCookie: []
+        csrfHeader: []
+  /api/stations/{id}:
+    get:
+      tags:
+      - Estações
+      summary: Detalhar estação
+      operationId: get_1
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: Estação.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StationResponse"
+        "404":
+          description: "STATION_NOT_FOUND (inexistente, excluída ou de outro produtor)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "400":
+          description: "VALIDATION_ERROR (com errors por campo), MALFORMED_REQUEST\
+            \ ou INVALID_PARAMETER."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: "UNAUTHENTICATED: sem sessão ou sessão expirada."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: ACCESS_DENIED ou PASSWORD_CHANGE_REQUIRED.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          description: INTERNAL_ERROR.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      security:
+      - sessionCookie: []
+    put:
+      tags:
+      - Estações
+      summary: Editar estação
+      description: "Substitui nome, descrição, localização, visibilidade pública e\
+        \ gateway. Ao trocar de gateway, a estação passa a ser do dono do novo gateway."
+      operationId: update_1
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateStationRequest"
+        required: true
+      responses:
+        "200":
+          description: Estação atualizada.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StationResponse"
+        "400":
+          description: VALIDATION_ERROR (inclui locationComplete e publicWithLocation).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: STATION_NOT_FOUND ou GATEWAY_NOT_FOUND.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: "UNAUTHENTICATED: sem sessão ou sessão expirada."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: "ACCESS_DENIED, CSRF_TOKEN_INVALID ou PASSWORD_CHANGE_REQUIRED."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          description: INTERNAL_ERROR.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      security:
+      - sessionCookie: []
+        csrfHeader: []
+    delete:
+      tags:
+      - Estações
+      summary: Excluir estação
+      description: "Exclusão lógica: as leituras gravadas são mantidas e o chip ID\
+        \ fica livre para novo cadastro. A estação sai da área pública."
+      operationId: delete
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "204":
+          description: Estação excluída.
+        "404":
+          description: STATION_NOT_FOUND.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "400":
+          description: "VALIDATION_ERROR (com errors por campo), MALFORMED_REQUEST\
+            \ ou INVALID_PARAMETER."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: "UNAUTHENTICATED: sem sessão ou sessão expirada."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: "ACCESS_DENIED, CSRF_TOKEN_INVALID ou PASSWORD_CHANGE_REQUIRED."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          description: INTERNAL_ERROR.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      security:
+      - sessionCookie: []
+        csrfHeader: []
+  /api/gateways/{id}:
+    get:
+      tags:
+      - Gateways
+      summary: Detalhar gateway
+      operationId: get_2
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "200":
+          description: Gateway.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GatewayResponse"
+        "404":
+          description: "GATEWAY_NOT_FOUND (inexistente, excluído ou de outro produtor)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "400":
+          description: "VALIDATION_ERROR (com errors por campo), MALFORMED_REQUEST\
+            \ ou INVALID_PARAMETER."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: "UNAUTHENTICATED: sem sessão ou sessão expirada."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: ACCESS_DENIED ou PASSWORD_CHANGE_REQUIRED.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          description: INTERNAL_ERROR.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      security:
+      - sessionCookie: []
+    put:
+      tags:
+      - Gateways
+      summary: Editar gateway
+      description: "Substitui nome e descrição. ADMIN pode transferir o gateway para\
+        \ outro produtor (ownerId): as estações dele acompanham."
+      operationId: update_2
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateGatewayRequest"
+        required: true
+      responses:
+        "200":
+          description: Gateway atualizado.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GatewayResponse"
+        "400":
+          description: VALIDATION_ERROR ou INVALID_OWNER.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: "ACCESS_DENIED (PRODUCER tentando transferir), CSRF_TOKEN_INVALID\
+            \ ou PASSWORD_CHANGE_REQUIRED."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: GATEWAY_NOT_FOUND.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: "UNAUTHENTICATED: sem sessão ou sessão expirada."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          description: INTERNAL_ERROR.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      security:
+      - sessionCookie: []
+        csrfHeader: []
+    delete:
+      tags:
+      - Gateways
+      summary: Excluir gateway
+      description: "Exclusão lógica: os dados gravados são mantidos e o chip ID fica\
+        \ livre para novo cadastro. Não é permitido enquanto o gateway tiver estaç\
+        ões ativas."
+      operationId: delete_1
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "204":
+          description: Gateway excluído.
+        "404":
+          description: GATEWAY_NOT_FOUND.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: GATEWAY_HAS_ACTIVE_STATIONS.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "400":
+          description: "VALIDATION_ERROR (com errors por campo), MALFORMED_REQUEST\
+            \ ou INVALID_PARAMETER."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: "UNAUTHENTICATED: sem sessão ou sessão expirada."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: "ACCESS_DENIED, CSRF_TOKEN_INVALID ou PASSWORD_CHANGE_REQUIRED."
           content:
             application/json:
               schema:
@@ -388,6 +730,316 @@ paths:
         "400":
           description: "VALIDATION_ERROR (com errors por campo), MALFORMED_REQUEST\
             \ ou INVALID_PARAMETER."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: "UNAUTHENTICATED: sem sessão ou sessão expirada."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          description: INTERNAL_ERROR.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      security:
+      - sessionCookie: []
+        csrfHeader: []
+  /api/stations:
+    get:
+      tags:
+      - Estações
+      summary: Listar estações
+      description: "PRODUCER: só as próprias. ADMIN: todas, com filtro opcional por\
+        \ dono. sort aceita: name, hardwareId, createdAt, updatedAt. Padrão: name,asc."
+      operationId: list_1
+      parameters:
+      - name: gatewayId
+        in: query
+        description: Filtra pelo gateway.
+        required: false
+        schema:
+          type: string
+          format: uuid
+      - name: ownerId
+        in: query
+        description: "Somente ADMIN: filtra por produtor dono."
+        required: false
+        schema:
+          type: string
+          format: uuid
+      - name: isPublic
+        in: query
+        description: Filtra por visibilidade pública.
+        required: false
+        schema:
+          type: boolean
+      - name: search
+        in: query
+        description: Busca por parte do nome ou do chip ID.
+        required: false
+        schema:
+          type: string
+        example: talhão
+      - name: includeDeleted
+        in: query
+        description: "Somente ADMIN: inclui estações excluídas."
+        required: false
+        schema:
+          type: boolean
+          default: false
+      - name: page
+        in: query
+        description: Zero-based page index (0..N)
+        required: false
+        schema:
+          type: integer
+          default: 0
+          minimum: 0
+      - name: size
+        in: query
+        description: The size of the page to be returned
+        required: false
+        schema:
+          type: integer
+          default: 20
+          minimum: 1
+      - name: sort
+        in: query
+        description: "Sorting criteria in the format: property,(asc|desc). Default\
+          \ sort order is ascending. Multiple sort criteria are supported."
+        required: false
+        schema:
+          type: array
+          default:
+          - "name,ASC"
+          items:
+            type: string
+      responses:
+        "200":
+          description: Página de estações.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageResponseStationResponse"
+        "400":
+          description: "VALIDATION_ERROR (com errors por campo), MALFORMED_REQUEST\
+            \ ou INVALID_PARAMETER."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: "UNAUTHENTICATED: sem sessão ou sessão expirada."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: ACCESS_DENIED ou PASSWORD_CHANGE_REQUIRED.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          description: INTERNAL_ERROR.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      security:
+      - sessionCookie: []
+    post:
+      tags:
+      - Estações
+      summary: Cadastrar estação
+      description: "Registra o chip ID do pluviômetro, vinculado a um gateway do mesmo\
+        \ produtor. Só pacotes MQTT de equipamentos cadastrados são gravados."
+      operationId: create_1
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateStationRequest"
+        required: true
+      responses:
+        "201":
+          description: Estação cadastrada (header Location aponta para ela).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StationResponse"
+        "400":
+          description: VALIDATION_ERROR (inclui locationComplete e publicWithLocation).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "404":
+          description: "GATEWAY_NOT_FOUND (gateway inexistente, excluído ou de outro\
+            \ produtor)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: HARDWARE_ID_ALREADY_REGISTERED.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: "UNAUTHENTICATED: sem sessão ou sessão expirada."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: "ACCESS_DENIED, CSRF_TOKEN_INVALID ou PASSWORD_CHANGE_REQUIRED."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          description: INTERNAL_ERROR.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      security:
+      - sessionCookie: []
+        csrfHeader: []
+  /api/gateways:
+    get:
+      tags:
+      - Gateways
+      summary: Listar gateways
+      description: "PRODUCER: só os próprios. ADMIN: todos, com filtro opcional por\
+        \ dono. sort aceita: name, hardwareId, createdAt, updatedAt. Padrão: name,asc."
+      operationId: list_2
+      parameters:
+      - name: ownerId
+        in: query
+        description: "Somente ADMIN: filtra por produtor dono."
+        required: false
+        schema:
+          type: string
+          format: uuid
+      - name: search
+        in: query
+        description: Busca por parte do nome ou do chip ID.
+        required: false
+        schema:
+          type: string
+        example: sede
+      - name: includeDeleted
+        in: query
+        description: "Somente ADMIN: inclui gateways excluídos."
+        required: false
+        schema:
+          type: boolean
+          default: false
+      - name: page
+        in: query
+        description: Zero-based page index (0..N)
+        required: false
+        schema:
+          type: integer
+          default: 0
+          minimum: 0
+      - name: size
+        in: query
+        description: The size of the page to be returned
+        required: false
+        schema:
+          type: integer
+          default: 20
+          minimum: 1
+      - name: sort
+        in: query
+        description: "Sorting criteria in the format: property,(asc|desc). Default\
+          \ sort order is ascending. Multiple sort criteria are supported."
+        required: false
+        schema:
+          type: array
+          default:
+          - "name,ASC"
+          items:
+            type: string
+      responses:
+        "200":
+          description: Página de gateways.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageResponseGatewayResponse"
+        "400":
+          description: "VALIDATION_ERROR (com errors por campo), MALFORMED_REQUEST\
+            \ ou INVALID_PARAMETER."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: "UNAUTHENTICATED: sem sessão ou sessão expirada."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: ACCESS_DENIED ou PASSWORD_CHANGE_REQUIRED.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          description: INTERNAL_ERROR.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      security:
+      - sessionCookie: []
+    post:
+      tags:
+      - Gateways
+      summary: Cadastrar gateway
+      description: "Registra o chip ID do gateway. Só pacotes MQTT de equipamentos\
+        \ cadastrados são gravados. PRODUCER: o dono é ele mesmo (omita ownerId).\
+        \ ADMIN: informe ownerId (produtor ativo)."
+      operationId: create_2
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateGatewayRequest"
+        required: true
+      responses:
+        "201":
+          description: Gateway cadastrado (header Location aponta para ele).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GatewayResponse"
+        "400":
+          description: "VALIDATION_ERROR, OWNER_REQUIRED (ADMIN sem ownerId) ou INVALID_OWNER."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: "ACCESS_DENIED (PRODUCER informando outro dono), CSRF_TOKEN_INVALID\
+            \ ou PASSWORD_CHANGE_REQUIRED."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "409":
+          description: HARDWARE_ID_ALREADY_REGISTERED.
           content:
             application/json:
               schema:
@@ -747,6 +1399,268 @@ components:
           minLength: 8
       required:
       - newPassword
+    UpdateStationRequest:
+      type: object
+      description: "Edição de estação (substitui todos os campos editáveis). O chip\
+        \ ID não muda: para trocar o equipamento, exclua e cadastre outro."
+      properties:
+        gatewayId:
+          type: string
+          format: uuid
+          description: "Gateway que recebe os dados desta estação (precisa ser do\
+            \ mesmo produtor). ADMIN pode escolher gateway de outro produtor: a estaç\
+            ão passa a ser desse produtor."
+          example: 019a6f3e-8b1c-7d2e-9f40-1a2b3c4d5e6f
+        name:
+          type: string
+          description: Nome.
+          example: Pluviômetro do talhão 3
+          maxLength: 100
+          minLength: 0
+        description:
+          type: string
+          description: Descrição livre.
+          example: Ao lado da porteira
+          maxLength: 1000
+          minLength: 0
+        latitude:
+          type: number
+          format: double
+          description: Latitude em graus decimais (WGS84). Informe junto com a longitude.
+          example: -29.6842
+          maximum: 90
+          minimum: -90
+        longitude:
+          type: number
+          format: double
+          description: Longitude em graus decimais (WGS84). Informe junto com a latitude.
+          example: -53.8069
+          maximum: 180
+          minimum: -180
+        isPublic:
+          type: boolean
+          description: "Mostrar na área pública (só chuva e localização). Exige latitude/longitude.\
+            \ Padrão: false."
+          example: false
+      required:
+      - gatewayId
+      - name
+    GatewaySummary:
+      type: object
+      description: Gateway ao qual a estação está vinculada.
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: ID do gateway.
+          example: 019a6f3e-8b1c-7d2e-9f40-1a2b3c4d5e6f
+        hardwareId:
+          type: string
+          description: Chip ID do gateway.
+          example: gt-570db4
+        name:
+          type: string
+          description: Nome do gateway.
+          example: Gateway da sede
+      required:
+      - hardwareId
+      - id
+      - name
+    OwnerSummary:
+      type: object
+      description: Produtor dono do equipamento (nunca exposto na área pública).
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: ID do produtor.
+          example: 019a6f3e-8b1c-7d2e-9f40-1a2b3c4d5e6f
+        name:
+          type: string
+          description: Nome do produtor.
+          example: Maria da Silva
+        email:
+          type: string
+          description: Email do produtor.
+          example: maria@exemplo.com.br
+      required:
+      - email
+      - id
+      - name
+    StationResponse:
+      type: object
+      description: "Estação (pluviômetro), na visão do dono/ADMIN. A área pública\
+        \ usa outro DTO, sem dados do dono."
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: ID da estação na plataforma.
+          example: 019a6f3e-8b1c-7d2e-9f40-1a2b3c4d5e6f
+        hardwareId:
+          type: string
+          description: Chip ID do pluviômetro (campo id do payload MQTT). Imutável.
+          example: 580db2
+        name:
+          type: string
+          description: Nome.
+          example: Pluviômetro do talhão 3
+        description:
+          type: string
+          description: Descrição livre.
+          example: Ao lado da porteira
+        latitude:
+          type: number
+          format: double
+          description: "Latitude (graus decimais, WGS84)."
+          example: -29.6842
+        longitude:
+          type: number
+          format: double
+          description: "Longitude (graus decimais, WGS84)."
+          example: -53.8069
+        isPublic:
+          type: boolean
+          description: "Se aparece na área pública (só chuva e localização, nunca\
+            \ dados do dono)."
+          example: true
+        gateway:
+          $ref: "#/components/schemas/GatewaySummary"
+          description: Gateway vinculado.
+        owner:
+          $ref: "#/components/schemas/OwnerSummary"
+          description: Produtor dono (sempre o dono do gateway).
+        fwVersion:
+          type: string
+          description: Firmware reportado pelo pluviômetro (tópico conf).
+          example: 1.0.0
+        hwVersion:
+          type: string
+          description: Hardware reportado pelo pluviômetro (tópico conf).
+          example: "1.0"
+        sendIntervalS:
+          type: integer
+          format: int32
+          description: "Intervalo de envio reportado, em segundos."
+          example: 60
+        mmPerTip:
+          type: number
+          description: Milímetros por basculada reportados.
+          example: 0.2
+        configReportedAt:
+          type: string
+          format: date-time
+          description: Quando o dispositivo reportou a configuração pela última vez.
+          example: 2026-11-10T12:00:00Z
+        createdAt:
+          type: string
+          format: date-time
+          description: Criação.
+          example: 2026-11-10T12:00:00Z
+        updatedAt:
+          type: string
+          format: date-time
+          description: Última alteração.
+          example: 2026-11-10T12:00:00Z
+        deletedAt:
+          type: string
+          format: date-time
+          description: Exclusão (soft delete); preenchido só para o ADMIN com includeDeleted=true.
+      required:
+      - createdAt
+      - gateway
+      - hardwareId
+      - id
+      - isPublic
+      - name
+      - owner
+      - updatedAt
+    UpdateGatewayRequest:
+      type: object
+      description: "Edição de gateway (substitui nome e descrição). O chip ID não\
+        \ muda: para trocar o equipamento, exclua e cadastre outro."
+      properties:
+        name:
+          type: string
+          description: Nome.
+          example: Gateway da sede
+          maxLength: 100
+          minLength: 0
+        description:
+          type: string
+          description: Descrição livre.
+          example: Instalado no galpão principal
+          maxLength: 1000
+          minLength: 0
+        ownerId:
+          type: string
+          format: uuid
+          description: "Somente ADMIN: transfere o gateway (e todas as estações dele)\
+            \ para outro produtor. Omitir mantém o dono atual."
+          example: 019a6f3e-8b1c-7d2e-9f40-1a2b3c4d5e6f
+      required:
+      - name
+    GatewayResponse:
+      type: object
+      description: Gateway (ESP8266 que recebe dos pluviômetros e publica no broker
+        MQTT).
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: ID do gateway na plataforma.
+          example: 019a6f3e-8b1c-7d2e-9f40-1a2b3c4d5e6f
+        hardwareId:
+          type: string
+          description: "Chip ID (segmento do tópico MQTT pluviffar/{hardwareId}/...).\
+            \ Imutável."
+          example: gt-570db4
+        name:
+          type: string
+          description: Nome.
+          example: Gateway da sede
+        description:
+          type: string
+          description: Descrição livre.
+          example: Instalado no galpão principal
+        owner:
+          $ref: "#/components/schemas/OwnerSummary"
+          description: Produtor dono.
+        fwVersion:
+          type: string
+          description: Versão de firmware reportada pelo dispositivo (tópico conf).
+          example: 1.0.0
+        hwVersion:
+          type: string
+          description: Versão de hardware reportada pelo dispositivo (tópico conf).
+          example: "1.0"
+        configReportedAt:
+          type: string
+          format: date-time
+          description: Quando o dispositivo reportou a configuração pela última vez.
+          example: 2026-11-10T12:00:00Z
+        createdAt:
+          type: string
+          format: date-time
+          description: Criação.
+          example: 2026-11-10T12:00:00Z
+        updatedAt:
+          type: string
+          format: date-time
+          description: Última alteração.
+          example: 2026-11-10T12:00:00Z
+        deletedAt:
+          type: string
+          format: date-time
+          description: Exclusão (soft delete); preenchido só em listagens do ADMIN
+            com includeDeleted=true.
+      required:
+      - createdAt
+      - hardwareId
+      - id
+      - name
+      - owner
+      - updatedAt
     ChangePasswordRequest:
       type: object
       description: Troca da própria senha. Encerra as outras sessões do usuário e
@@ -802,6 +1716,95 @@ components:
       - name
       - password
       - role
+    CreateStationRequest:
+      type: object
+      description: Cadastro de estação (pluviômetro). Só pacotes de equipamentos cadastrados
+        são gravados pelo worker. O dono é sempre o dono do gateway.
+      properties:
+        hardwareId:
+          type: string
+          description: "Chip ID do pluviômetro, como vem no campo id do payload (normalizado\
+            \ para minúsculas). Não pode ser alterado depois."
+          example: 580db2
+          maxLength: 32
+          minLength: 1
+          pattern: "^[a-z0-9-]{1,32}$"
+        gatewayId:
+          type: string
+          format: uuid
+          description: "Gateway que recebe os dados desta estação (precisa ser do\
+            \ mesmo produtor). ADMIN pode escolher gateway de outro produtor: a estaç\
+            ão passa a ser desse produtor."
+          example: 019a6f3e-8b1c-7d2e-9f40-1a2b3c4d5e6f
+        name:
+          type: string
+          description: Nome.
+          example: Pluviômetro do talhão 3
+          maxLength: 100
+          minLength: 0
+        description:
+          type: string
+          description: Descrição livre.
+          example: Ao lado da porteira
+          maxLength: 1000
+          minLength: 0
+        latitude:
+          type: number
+          format: double
+          description: Latitude em graus decimais (WGS84). Informe junto com a longitude.
+          example: -29.6842
+          maximum: 90
+          minimum: -90
+        longitude:
+          type: number
+          format: double
+          description: Longitude em graus decimais (WGS84). Informe junto com a latitude.
+          example: -53.8069
+          maximum: 180
+          minimum: -180
+        isPublic:
+          type: boolean
+          description: "Mostrar na área pública (só chuva e localização). Exige latitude/longitude.\
+            \ Padrão: false."
+          example: false
+      required:
+      - gatewayId
+      - hardwareId
+      - name
+    CreateGatewayRequest:
+      type: object
+      description: Cadastro de gateway. Só pacotes de equipamentos cadastrados são
+        gravados pelo worker.
+      properties:
+        hardwareId:
+          type: string
+          description: "Chip ID do gateway, como aparece no tópico MQTT (normalizado\
+            \ para minúsculas). Não pode ser alterado depois."
+          example: gt-570db4
+          maxLength: 32
+          minLength: 1
+          pattern: "^[a-z0-9-]{1,32}$"
+        name:
+          type: string
+          description: Nome.
+          example: Gateway da sede
+          maxLength: 100
+          minLength: 0
+        description:
+          type: string
+          description: Descrição livre.
+          example: Instalado no galpão principal
+          maxLength: 1000
+          minLength: 0
+        ownerId:
+          type: string
+          format: uuid
+          description: Produtor dono. Obrigatório para ADMIN; PRODUCER deve omitir
+            (o dono é ele mesmo).
+          example: 019a6f3e-8b1c-7d2e-9f40-1a2b3c4d5e6f
+      required:
+      - hardwareId
+      - name
     LoginRequest:
       type: object
       description: Credenciais de login.
@@ -875,6 +1878,78 @@ components:
           description: Itens da página.
           items:
             $ref: "#/components/schemas/UserResponse"
+        page:
+          type: integer
+          format: int32
+          description: Número da página (começa em 0).
+          example: 0
+        size:
+          type: integer
+          format: int32
+          description: Tamanho da página.
+          example: 20
+        totalElements:
+          type: integer
+          format: int64
+          description: Total de itens.
+          example: 42
+        totalPages:
+          type: integer
+          format: int32
+          description: Total de páginas.
+          example: 3
+      required:
+      - content
+      - page
+      - size
+      - totalElements
+      - totalPages
+    PageResponseStationResponse:
+      type: object
+      description: "Página de resultados. Parâmetros: page (0-based), size (padrã\
+        o 20, máx. 100), sort=campo,asc|desc."
+      properties:
+        content:
+          type: array
+          description: Itens da página.
+          items:
+            $ref: "#/components/schemas/StationResponse"
+        page:
+          type: integer
+          format: int32
+          description: Número da página (começa em 0).
+          example: 0
+        size:
+          type: integer
+          format: int32
+          description: Tamanho da página.
+          example: 20
+        totalElements:
+          type: integer
+          format: int64
+          description: Total de itens.
+          example: 42
+        totalPages:
+          type: integer
+          format: int32
+          description: Total de páginas.
+          example: 3
+      required:
+      - content
+      - page
+      - size
+      - totalElements
+      - totalPages
+    PageResponseGatewayResponse:
+      type: object
+      description: "Página de resultados. Parâmetros: page (0-based), size (padrã\
+        o 20, máx. 100), sort=campo,asc|desc."
+      properties:
+        content:
+          type: array
+          description: Itens da página.
+          items:
+            $ref: "#/components/schemas/GatewayResponse"
         page:
           type: integer
           format: int32
