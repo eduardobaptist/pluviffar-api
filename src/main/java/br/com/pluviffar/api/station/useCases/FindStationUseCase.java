@@ -33,6 +33,15 @@ public class FindStationUseCase {
         return find(id, CurrentUser.ownerScope(), false);
     }
 
+    /**
+     * Estação cujos dados (telemetria) o usuário pode ler: as próprias ativas (PRODUCER) ou qualquer uma,
+     * inclusive excluída (ADMIN) — dado medido não se apaga.
+     */
+    public Station getReadableOrThrow(UUID id) {
+        UUID scope = CurrentUser.ownerScope();
+        return find(id, scope, scope == null);
+    }
+
     private Station find(UUID id, UUID scope, boolean includeDeleted) {
         return stationRepository.findOne(StationRepository.visible(scope, includeDeleted).and(StationRepository.byId(id)))
                 .orElseThrow(() -> new BusinessException(ErrorCode.STATION_NOT_FOUND));

@@ -41,6 +41,11 @@ public interface StationRepository extends JpaRepository<Station, UUID>, JpaSpec
         return Specification.allOf(specs);
     }
 
+    /** Visíveis na área pública: marcadas como públicas pelo dono e não excluídas. */
+    static Specification<Station> publiclyVisible() {
+        return (root, query, cb) -> cb.and(cb.isTrue(root.get("isPublic")), cb.isNull(root.get("deletedAt")));
+    }
+
     static Specification<Station> byId(UUID id) {
         return (root, query, cb) -> cb.equal(root.get("id"), id);
     }

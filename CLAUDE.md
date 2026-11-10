@@ -202,6 +202,19 @@ Dois perfis (roles):
 - Exclusão: lógica (`deleted_at`); libera o chip para novo cadastro. Gateway com estação ativa não pode ser excluído (409 `GATEWAY_HAS_ACTIVE_STATIONS`). Estação excluída tem `is_public` desligado.
 - ADMIN: filtros `ownerId` e `includeDeleted` nas listagens e vê excluídos no detalhe (mas não altera). Para PRODUCER esses filtros são ignorados.
 - Estação: latitude/longitude juntas ou nenhuma (`locationComplete`); pública exige localização (`publicWithLocation`). O `StationResponse` traz dados do dono — **não usar na área pública** (criar DTO próprio).
+
+### Telemetria (`/api/stations/{id}/...`) — implementado
+
+- `overview` (última leitura, último status, totais hoje/24 h/7 d/30 d), `precipitation` (série agregada: `bucket` HOUR|DAY|WEEK|MONTH), `readings` e `status` (brutos, paginados, do mais recente ao mais antigo), `config-reports` (histórico do conf).
+- Posse: `FindStationUseCase.getReadableOrThrow` — PRODUCER só as próprias ativas; ADMIN lê também estações excluídas (dado medido não se apaga).
+- Períodos `[from, to)` em ISO-8601 (`TimeRange`): `to` padrão = agora; `from` padrão e máximo por consulta (brutos: 24 h / 93 dias; série: ver `PrecipitationBucket`). Erros `INVALID_PERIOD` e `PERIOD_TOO_LONG`.
+- Fuso (`timezone`, IANA, padrão `America/Sao_Paulo`): alinha dias/semanas/meses e "hoje". `time_bucket(width, ts, tz)` funciona na edição Apache (testado na imagem `-oss`). **Não usar** `time_bucket_gapfill` (TSL): buckets sem leitura simplesmente não aparecem (sem dado ≠ chuva zero; `readingsCount` ajuda o front a ver falhas).
+- SQL de série temporal em `telemetry.repositories.TelemetryQueries` (NamedParameterJdbcTemplate); leituras brutas via JPA (`ReadingRepository`, entidades `@Immutable`). `PrecipitationReport` faz os cálculos **sem checar acesso** — quem chama valida a estação.
+
+### Área pública (`/api/public/stations`) — implementado
+
+- Sem login e sem sessão. `GET /` (todas as públicas, sem paginação, para o mapa: nome, lat/long, última leitura, chuva 24 h), `GET /{id}` (totais) e `GET /{id}/precipitation` (série).
+- Só estações `is_public` e não excluídas (`PublicStationFinder`, `StationRepository.publiclyVisible()`); o resto é 404. DTOs próprios (`publicdata.dtos`): **nunca** dono, chip ID, descrição ou gateway.
 - Três áreas (protótipos): **Admin**, **Produtor** e **Pública**. A área **pública** (sem login) expõe somente estações marcadas como públicas pelo dono: dados de chuva e localização, nunca dados do dono. Endpoints públicos ficam sob um prefixo próprio (ex.: `/api/public/**`) liberado no `SecurityFilterChain`.
 - TODO: o TCC 4 (análise/predição) vai consumir dados pela API ou direto no banco?
 
@@ -289,4 +302,4 @@ O frontend será construído depois, também com o Claude, a partir do contrato 
 - Antes de mudanças grandes (novo módulo, mudança de schema, auth), propor um plano curto.
 - Mudança no protocolo MQTT ou no schema → atualizar este arquivo (ou `docs/`) no mesmo commit.
 - Conversar comigo e comentar em português; código, schema e contratos em inglês (ver "Idioma").
-- Feito: schema (V1/V2), entidades JPA, módulo de usuários, auth por sessão + CSRF, infra de erros, contrato OpenAPI, CRUD de gateways e estações com checagem de posse. Próximo: consulta de leituras/status (séries temporais com `time_bucket`, filtros `from`/`to`) e área pública (`/api/public/**`).
+- Feito: schema (V1/V2), entidades JPA, módulo de usuários, auth por sessão + CSRF, infra de erros, contrato OpenAPI, CRUD de gateways e estações com checagem de posse, consulta de telemetria e área pública. Pendências conhecidas: ajuste do worker ao novo schema (`docs/schema.md`), deploy na VPS (TODOs de infraestrutura), rate limit na área pública, decisões de TODO acima (domínios/CORS, TCC 4).

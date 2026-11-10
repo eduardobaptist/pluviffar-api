@@ -18,6 +18,8 @@ public enum ErrorCode {
     NEW_PASSWORD_SAME_AS_CURRENT("error.new-password-same-as-current", HttpStatus.BAD_REQUEST),
     OWNER_REQUIRED("error.owner-required", HttpStatus.BAD_REQUEST),
     INVALID_OWNER("error.invalid-owner", HttpStatus.BAD_REQUEST),
+    INVALID_PERIOD("error.invalid-period", HttpStatus.BAD_REQUEST),
+    PERIOD_TOO_LONG("error.period-too-long", HttpStatus.BAD_REQUEST),
 
     // 401
     UNAUTHENTICATED("error.unauthenticated", HttpStatus.UNAUTHORIZED),

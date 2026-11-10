@@ -26,7 +26,7 @@ info:
     Filtros de período usam `from`/`to` em ISO-8601 (ex.: `2026-11-10T00:00:00Z`).
   version: v1
 servers:
-- url: http://localhost:45257
+- url: http://localhost:41991
   description: Generated server url
 tags:
 - name: Autenticação
@@ -37,9 +37,16 @@ tags:
 - name: Gateways
   description: Gateways do produtor. PRODUCER gerencia só os próprios (os de outro
     produtor respondem 404); ADMIN gerencia todos.
+- name: Área pública
+  description: "Sem login. Só estações marcadas como públicas pelo dono: nome, localizaç\
+    ão e chuva. Nunca expõe dados do dono nem o chip ID."
 - name: Estações
   description: Estações (pluviômetros) do produtor. PRODUCER gerencia só as próprias
     (as de outro produtor respondem 404); ADMIN gerencia todas.
+- name: Telemetria
+  description: "Dados gravados pelo worker para uma estação. Mesma regra de posse\
+    \ das estações (de outro produtor → 404); o ADMIN também lê dados de estações\
+    \ excluídas. Períodos são [from, to) em ISO-8601 (ex.: 2026-11-10T00:00:00Z)."
 paths:
   /api/users/{id}:
     get:
@@ -1205,6 +1212,579 @@ paths:
       security:
       - sessionCookie: []
         csrfHeader: []
+  /api/stations/{id}/status:
+    get:
+      tags:
+      - Telemetria
+      summary: Status do dispositivo
+      description: "Bateria, sinal (RSSI) e uptime (tópico status), do mais recente\
+        \ para o mais antigo (sort é ignorado). Padrão: últimas 24 h; máximo 93 dias."
+      operationId: status
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: from
+        in: query
+        description: "Início (inclusivo), ISO-8601. Padrão: to − 24 h."
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - name: to
+        in: query
+        description: "Fim (exclusivo), ISO-8601. Padrão: agora."
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - name: page
+        in: query
+        description: Zero-based page index (0..N)
+        required: false
+        schema:
+          type: integer
+          default: 0
+          minimum: 0
+      - name: size
+        in: query
+        description: The size of the page to be returned
+        required: false
+        schema:
+          type: integer
+          default: 50
+          minimum: 1
+      - name: sort
+        in: query
+        description: "Sorting criteria in the format: property,(asc|desc). Default\
+          \ sort order is ascending. Multiple sort criteria are supported."
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
+      responses:
+        "404":
+          description: STATION_NOT_FOUND.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "400":
+          description: "INVALID_PERIOD, PERIOD_TOO_LONG ou INVALID_PARAMETER."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "200":
+          description: Página de status.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageResponseDeviceStatusResponse"
+        "401":
+          description: "UNAUTHENTICATED: sem sessão ou sessão expirada."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: ACCESS_DENIED ou PASSWORD_CHANGE_REQUIRED.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          description: INTERNAL_ERROR.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      security:
+      - sessionCookie: []
+  /api/stations/{id}/readings:
+    get:
+      tags:
+      - Telemetria
+      summary: Leituras brutas
+      description: "Leituras do tópico dados, da mais recente para a mais antiga (sort\
+        \ é ignorado). Padrão: últimas 24 h; máximo 93 dias."
+      operationId: readings
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: from
+        in: query
+        description: "Início (inclusivo), ISO-8601. Padrão: to − 24 h."
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - name: to
+        in: query
+        description: "Fim (exclusivo), ISO-8601. Padrão: agora."
+        required: false
+        schema:
+          type: string
+          format: date-time
+      - name: page
+        in: query
+        description: Zero-based page index (0..N)
+        required: false
+        schema:
+          type: integer
+          default: 0
+          minimum: 0
+      - name: size
+        in: query
+        description: The size of the page to be returned
+        required: false
+        schema:
+          type: integer
+          default: 50
+          minimum: 1
+      - name: sort
+        in: query
+        description: "Sorting criteria in the format: property,(asc|desc). Default\
+          \ sort order is ascending. Multiple sort criteria are supported."
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
+      responses:
+        "404":
+          description: STATION_NOT_FOUND.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "400":
+          description: "INVALID_PERIOD, PERIOD_TOO_LONG ou INVALID_PARAMETER."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "200":
+          description: Página de leituras.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageResponseReadingResponse"
+        "401":
+          description: "UNAUTHENTICATED: sem sessão ou sessão expirada."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: ACCESS_DENIED ou PASSWORD_CHANGE_REQUIRED.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          description: INTERNAL_ERROR.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      security:
+      - sessionCookie: []
+  /api/stations/{id}/precipitation:
+    get:
+      tags:
+      - Telemetria
+      summary: Série de chuva agregada
+      description: "Chuva somada por hora, dia, semana ou mês (no fuso pedido). Sem\
+        \ from, usa o período padrão da granularidade; sem to, até agora. Buckets\
+        \ sem leitura não aparecem."
+      operationId: precipitation
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: bucket
+        in: query
+        description: Granularidade (padrão DAY).
+        required: false
+        schema:
+          type: string
+          description: "Granularidade da agregação: HOUR (padrão 7 dias, máx. 93),\
+            \ DAY (padrão 30 dias, máx. 1100), WEEK (padrão 365 dias, máx. 3660; semanas\
+            \ começam na segunda), MONTH (padrão 365 dias, máx. 10980)."
+          enum:
+          - HOUR
+          - DAY
+          - WEEK
+          - MONTH
+      - name: from
+        in: query
+        description: "Início (inclusivo), ISO-8601."
+        required: false
+        schema:
+          type: string
+          format: date-time
+        example: 2026-10-01T03:00:00Z
+      - name: to
+        in: query
+        description: "Fim (exclusivo), ISO-8601. Padrão: agora."
+        required: false
+        schema:
+          type: string
+          format: date-time
+        example: 2026-11-01T03:00:00Z
+      - name: timezone
+        in: query
+        description: "Fuso IANA para alinhar dias/semanas/meses e \"hoje\". Padrã\
+          o: America/Sao_Paulo."
+        required: false
+        schema:
+          type: string
+        example: America/Sao_Paulo
+      responses:
+        "404":
+          description: STATION_NOT_FOUND.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "400":
+          description: "INVALID_PERIOD, PERIOD_TOO_LONG ou INVALID_PARAMETER."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "200":
+          description: Série.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PrecipitationSeriesResponse"
+        "401":
+          description: "UNAUTHENTICATED: sem sessão ou sessão expirada."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: ACCESS_DENIED ou PASSWORD_CHANGE_REQUIRED.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          description: INTERNAL_ERROR.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      security:
+      - sessionCookie: []
+  /api/stations/{id}/overview:
+    get:
+      tags:
+      - Telemetria
+      summary: Resumo da estação
+      description: "Última leitura, último status e chuva acumulada hoje, nas últimas\
+        \ 24 h, 7 e 30 dias."
+      operationId: overview
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: timezone
+        in: query
+        description: "Fuso IANA para alinhar dias/semanas/meses e \"hoje\". Padrã\
+          o: America/Sao_Paulo."
+        required: false
+        schema:
+          type: string
+        example: America/Sao_Paulo
+      responses:
+        "404":
+          description: STATION_NOT_FOUND.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "400":
+          description: "INVALID_PERIOD, PERIOD_TOO_LONG ou INVALID_PARAMETER."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "200":
+          description: Resumo.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StationOverviewResponse"
+        "401":
+          description: "UNAUTHENTICATED: sem sessão ou sessão expirada."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: ACCESS_DENIED ou PASSWORD_CHANGE_REQUIRED.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          description: INTERNAL_ERROR.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      security:
+      - sessionCookie: []
+  /api/stations/{id}/config-reports:
+    get:
+      tags:
+      - Telemetria
+      summary: Histórico de configuração
+      description: "Versões de firmware/hardware, intervalo de envio e mm por basculada\
+        \ reportados pelo dispositivo (tópico conf), do mais recente para o mais antigo.\
+        \ O estado atual também está no detalhe da estação."
+      operationId: configReports
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: page
+        in: query
+        description: Zero-based page index (0..N)
+        required: false
+        schema:
+          type: integer
+          default: 0
+          minimum: 0
+      - name: size
+        in: query
+        description: The size of the page to be returned
+        required: false
+        schema:
+          type: integer
+          default: 20
+          minimum: 1
+      - name: sort
+        in: query
+        description: "Sorting criteria in the format: property,(asc|desc). Default\
+          \ sort order is ascending. Multiple sort criteria are supported."
+        required: false
+        schema:
+          type: array
+          items:
+            type: string
+      responses:
+        "404":
+          description: STATION_NOT_FOUND.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "400":
+          description: "INVALID_PERIOD, PERIOD_TOO_LONG ou INVALID_PARAMETER."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "200":
+          description: Página de configurações.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PageResponseConfigReportResponse"
+        "401":
+          description: "UNAUTHENTICATED: sem sessão ou sessão expirada."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: ACCESS_DENIED ou PASSWORD_CHANGE_REQUIRED.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          description: INTERNAL_ERROR.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      security:
+      - sessionCookie: []
+  /api/public/stations:
+    get:
+      tags:
+      - Área pública
+      summary: Listar estações públicas
+      description: "Todas as estações públicas (sem paginação, para o mapa), com ú\
+        ltima leitura e chuva das últimas 24 h."
+      operationId: list_3
+      responses:
+        "200":
+          description: "Estações públicas, em ordem de nome."
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PublicStationSummary"
+        "500":
+          description: INTERNAL_ERROR.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      security: []
+  /api/public/stations/{id}:
+    get:
+      tags:
+      - Área pública
+      summary: Detalhar estação pública
+      description: "Localização e chuva acumulada hoje, 24 h, 7 e 30 dias."
+      operationId: get_3
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: timezone
+        in: query
+        description: "Fuso IANA para alinhar dias/semanas/meses e \"hoje\". Padrã\
+          o: America/Sao_Paulo."
+        required: false
+        schema:
+          type: string
+        example: America/Sao_Paulo
+      responses:
+        "200":
+          description: Estação pública.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicStationDetail"
+        "404":
+          description: STATION_NOT_FOUND (inexistente ou não pública).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "400":
+          description: "VALIDATION_ERROR (com errors por campo), MALFORMED_REQUEST\
+            \ ou INVALID_PARAMETER."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          description: INTERNAL_ERROR.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      security: []
+  /api/public/stations/{id}/precipitation:
+    get:
+      tags:
+      - Área pública
+      summary: Série de chuva de estação pública
+      description: "Mesma agregação da área logada (hora, dia, semana ou mês). Buckets\
+        \ sem leitura não aparecem."
+      operationId: precipitation_1
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      - name: bucket
+        in: query
+        description: Granularidade (padrão DAY).
+        required: false
+        schema:
+          type: string
+          description: "Granularidade da agregação: HOUR (padrão 7 dias, máx. 93),\
+            \ DAY (padrão 30 dias, máx. 1100), WEEK (padrão 365 dias, máx. 3660; semanas\
+            \ começam na segunda), MONTH (padrão 365 dias, máx. 10980)."
+          enum:
+          - HOUR
+          - DAY
+          - WEEK
+          - MONTH
+      - name: from
+        in: query
+        description: "Início (inclusivo), ISO-8601."
+        required: false
+        schema:
+          type: string
+          format: date-time
+        example: 2026-10-01T03:00:00Z
+      - name: to
+        in: query
+        description: "Fim (exclusivo), ISO-8601. Padrão: agora."
+        required: false
+        schema:
+          type: string
+          format: date-time
+        example: 2026-11-01T03:00:00Z
+      - name: timezone
+        in: query
+        description: "Fuso IANA para alinhar dias/semanas/meses e \"hoje\". Padrã\
+          o: America/Sao_Paulo."
+        required: false
+        schema:
+          type: string
+        example: America/Sao_Paulo
+      responses:
+        "200":
+          description: Série.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PrecipitationSeriesResponse"
+        "404":
+          description: STATION_NOT_FOUND (inexistente ou não pública).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "400":
+          description: "INVALID_PERIOD, PERIOD_TOO_LONG ou INVALID_PARAMETER."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          description: INTERNAL_ERROR.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      security: []
   /api/auth/me:
     get:
       tags:
@@ -1940,6 +2520,450 @@ components:
       - size
       - totalElements
       - totalPages
+    DeviceStatusResponse:
+      type: object
+      description: "Status do dispositivo (tópico status): bateria, sinal e uptime."
+      properties:
+        measuredAt:
+          type: string
+          format: date-time
+          description: Momento da medição.
+          example: 2026-11-10T12:00:00Z
+        receivedAt:
+          type: string
+          format: date-time
+          description: Quando o worker gravou.
+          example: 2026-11-10T12:00:02Z
+        gatewayId:
+          type: string
+          format: uuid
+          description: Gateway pelo qual o pacote chegou.
+          example: 019a6f3e-8b1c-7d2e-9f40-1a2b3c4d5e6f
+        batteryV:
+          type: number
+          format: float
+          description: Tensão da bateria (V).
+          example: 6.5
+        batteryPct:
+          type: integer
+          format: int32
+          description: Carga da bateria (%).
+          example: 74
+        rssiGatewayDbm:
+          type: integer
+          format: int32
+          description: RSSI do Wi-Fi do gateway (dBm).
+          example: -86
+        rssiStationDbm:
+          type: integer
+          format: int32
+          description: "RSSI do pluviômetro visto pelo gateway, via ESP-NOW (dBm)."
+          example: -60
+        uptimeGatewayS:
+          type: integer
+          format: int64
+          description: Uptime do gateway (s).
+          example: 86432
+        uptimeStationS:
+          type: integer
+          format: int64
+          description: Uptime do pluviômetro (s).
+          example: 85321
+      required:
+      - gatewayId
+      - measuredAt
+      - receivedAt
+    PageResponseDeviceStatusResponse:
+      type: object
+      description: "Página de resultados. Parâmetros: page (0-based), size (padrã\
+        o 20, máx. 100), sort=campo,asc|desc."
+      properties:
+        content:
+          type: array
+          description: Itens da página.
+          items:
+            $ref: "#/components/schemas/DeviceStatusResponse"
+        page:
+          type: integer
+          format: int32
+          description: Número da página (começa em 0).
+          example: 0
+        size:
+          type: integer
+          format: int32
+          description: Tamanho da página.
+          example: 20
+        totalElements:
+          type: integer
+          format: int64
+          description: Total de itens.
+          example: 42
+        totalPages:
+          type: integer
+          format: int32
+          description: Total de páginas.
+          example: 3
+      required:
+      - content
+      - page
+      - size
+      - totalElements
+      - totalPages
+    PageResponseReadingResponse:
+      type: object
+      description: "Página de resultados. Parâmetros: page (0-based), size (padrã\
+        o 20, máx. 100), sort=campo,asc|desc."
+      properties:
+        content:
+          type: array
+          description: Itens da página.
+          items:
+            $ref: "#/components/schemas/ReadingResponse"
+        page:
+          type: integer
+          format: int32
+          description: Número da página (começa em 0).
+          example: 0
+        size:
+          type: integer
+          format: int32
+          description: Tamanho da página.
+          example: 20
+        totalElements:
+          type: integer
+          format: int64
+          description: Total de itens.
+          example: 42
+        totalPages:
+          type: integer
+          format: int32
+          description: Total de páginas.
+          example: 3
+      required:
+      - content
+      - page
+      - size
+      - totalElements
+      - totalPages
+    ReadingResponse:
+      type: object
+      description: Leitura de chuva enviada pelo pluviômetro (tópico dados).
+      properties:
+        measuredAt:
+          type: string
+          format: date-time
+          description: Momento da medição (relógio do dispositivo).
+          example: 2026-11-10T12:00:00Z
+        receivedAt:
+          type: string
+          format: date-time
+          description: Quando o worker gravou a leitura.
+          example: 2026-11-10T12:00:02Z
+        tipsPerMinute:
+          type: integer
+          format: int32
+          description: Basculadas por minuto.
+          example: 4
+        precipitationMm:
+          type: number
+          description: "Chuva no intervalo, em mm."
+          example: 0.8
+        seq:
+          type: integer
+          format: int64
+          description: Sequência do dispositivo (lacunas indicam pacotes perdidos;
+            zera no reboot).
+          example: 1
+      required:
+      - measuredAt
+      - precipitationMm
+      - receivedAt
+      - seq
+      - tipsPerMinute
+    PrecipitationPoint:
+      type: object
+      description: "Um ponto da série: chuva acumulada no bucket."
+      properties:
+        bucketStart:
+          type: string
+          format: date-time
+          description: "Início do bucket (ISO-8601, UTC), alinhado ao fuso pedido."
+          example: 2026-11-10T03:00:00Z
+        precipitationMm:
+          type: number
+          description: Chuva no bucket (mm).
+          example: 12.4
+        readingsCount:
+          type: integer
+          format: int64
+          description: Leituras recebidas no bucket (ajuda a perceber falhas de envio).
+          example: 1440
+      required:
+      - bucketStart
+      - precipitationMm
+      - readingsCount
+    PrecipitationSeriesResponse:
+      type: object
+      description: Série de chuva agregada. Buckets sem leitura não aparecem (sem
+        dado ≠ chuva zero).
+      properties:
+        stationId:
+          type: string
+          format: uuid
+          description: ID da estação.
+          example: 019a6f3e-8b1c-7d2e-9f40-1a2b3c4d5e6f
+        bucket:
+          type: string
+          description: Granularidade.
+          enum:
+          - HOUR
+          - DAY
+          - WEEK
+          - MONTH
+          example: DAY
+        timezone:
+          type: string
+          description: Fuso usado para alinhar os buckets.
+          example: America/Sao_Paulo
+        from:
+          type: string
+          format: date-time
+          description: Início do período consultado (inclusivo).
+          example: 2026-10-11T03:00:00Z
+        to:
+          type: string
+          format: date-time
+          description: Fim do período consultado (exclusivo).
+          example: 2026-11-10T03:00:00Z
+        totalMm:
+          type: number
+          description: Chuva total no período (mm).
+          example: 87.2
+        points:
+          type: array
+          description: Pontos em ordem cronológica.
+          items:
+            $ref: "#/components/schemas/PrecipitationPoint"
+      required:
+      - bucket
+      - from
+      - points
+      - stationId
+      - timezone
+      - to
+      - totalMm
+    PrecipitationTotals:
+      type: object
+      description: Chuva acumulada em janelas até agora (mm).
+      properties:
+        todayMm:
+          type: number
+          description: "Desde a meia-noite de hoje, no fuso pedido."
+          example: 3.2
+        last24hMm:
+          type: number
+          description: Últimas 24 horas.
+          example: 5.6
+        last7dMm:
+          type: number
+          description: Últimos 7 dias.
+          example: 21.0
+        last30dMm:
+          type: number
+          description: Últimos 30 dias.
+          example: 87.2
+      required:
+      - last24hMm
+      - last30dMm
+      - last7dMm
+      - todayMm
+    StationOverviewResponse:
+      type: object
+      description: "Resumo da estação para o painel: última leitura, último status\
+        \ e totais de chuva."
+      properties:
+        stationId:
+          type: string
+          format: uuid
+          description: ID da estação.
+          example: 019a6f3e-8b1c-7d2e-9f40-1a2b3c4d5e6f
+        timezone:
+          type: string
+          description: Fuso usado para "hoje".
+          example: America/Sao_Paulo
+        lastReading:
+          $ref: "#/components/schemas/ReadingResponse"
+          description: Última leitura recebida (null se nunca enviou).
+        lastStatus:
+          $ref: "#/components/schemas/DeviceStatusResponse"
+          description: Último status recebido (null se nunca enviou).
+        precipitation:
+          $ref: "#/components/schemas/PrecipitationTotals"
+          description: Totais de chuva.
+      required:
+      - precipitation
+      - stationId
+      - timezone
+    ConfigReportResponse:
+      type: object
+      description: Configuração reportada pelo dispositivo (tópico conf). Registrada
+        só quando algo muda.
+      properties:
+        reportedAt:
+          type: string
+          format: date-time
+          description: Quando foi recebida.
+          example: 2026-11-10T12:00:00Z
+        gatewayId:
+          type: string
+          format: uuid
+          description: Gateway pelo qual chegou.
+          example: 019a6f3e-8b1c-7d2e-9f40-1a2b3c4d5e6f
+        fwGateway:
+          type: string
+          description: Firmware do gateway.
+          example: 1.0.0
+        hwGateway:
+          type: string
+          description: Hardware do gateway.
+          example: "1.0"
+        fwStation:
+          type: string
+          description: Firmware do pluviômetro.
+          example: 1.0.0
+        hwStation:
+          type: string
+          description: Hardware do pluviômetro.
+          example: "1.0"
+        sendIntervalS:
+          type: integer
+          format: int32
+          description: Intervalo de envio (s).
+          example: 60
+        mmPerTip:
+          type: number
+          description: Milímetros por basculada.
+          example: 0.2
+      required:
+      - gatewayId
+      - reportedAt
+    PageResponseConfigReportResponse:
+      type: object
+      description: "Página de resultados. Parâmetros: page (0-based), size (padrã\
+        o 20, máx. 100), sort=campo,asc|desc."
+      properties:
+        content:
+          type: array
+          description: Itens da página.
+          items:
+            $ref: "#/components/schemas/ConfigReportResponse"
+        page:
+          type: integer
+          format: int32
+          description: Número da página (começa em 0).
+          example: 0
+        size:
+          type: integer
+          format: int32
+          description: Tamanho da página.
+          example: 20
+        totalElements:
+          type: integer
+          format: int64
+          description: Total de itens.
+          example: 42
+        totalPages:
+          type: integer
+          format: int32
+          description: Total de páginas.
+          example: 3
+      required:
+      - content
+      - page
+      - size
+      - totalElements
+      - totalPages
+    PublicStationSummary:
+      type: object
+      description: Estação pública (para o mapa). Sem dados do dono e sem chip ID.
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: ID da estação.
+          example: 019a6f3e-8b1c-7d2e-9f40-1a2b3c4d5e6f
+        name:
+          type: string
+          description: Nome dado pelo dono.
+          example: Pluviômetro do talhão 3
+        latitude:
+          type: number
+          format: double
+          description: Latitude (WGS84).
+          example: -29.6842
+        longitude:
+          type: number
+          format: double
+          description: Longitude (WGS84).
+          example: -53.8069
+        lastReadingAt:
+          type: string
+          format: date-time
+          description: Última leitura recebida (null se nunca enviou).
+          example: 2026-11-10T12:00:00Z
+        last24hMm:
+          type: number
+          description: Chuva nas últimas 24 h (mm).
+          example: 5.6
+      required:
+      - id
+      - last24hMm
+      - latitude
+      - longitude
+      - name
+    PublicStationDetail:
+      type: object
+      description: "Detalhe de uma estação pública: localização e chuva acumulada.\
+        \ Sem dados do dono e sem chip ID."
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: ID da estação.
+          example: 019a6f3e-8b1c-7d2e-9f40-1a2b3c4d5e6f
+        name:
+          type: string
+          description: Nome dado pelo dono.
+          example: Pluviômetro do talhão 3
+        latitude:
+          type: number
+          format: double
+          description: Latitude (WGS84).
+          example: -29.6842
+        longitude:
+          type: number
+          format: double
+          description: Longitude (WGS84).
+          example: -53.8069
+        lastReadingAt:
+          type: string
+          format: date-time
+          description: Última leitura recebida (null se nunca enviou).
+          example: 2026-11-10T12:00:00Z
+        timezone:
+          type: string
+          description: Fuso usado para "hoje".
+          example: America/Sao_Paulo
+        precipitation:
+          $ref: "#/components/schemas/PrecipitationTotals"
+          description: Totais de chuva.
+      required:
+      - id
+      - latitude
+      - longitude
+      - name
+      - precipitation
+      - timezone
     PageResponseGatewayResponse:
       type: object
       description: "Página de resultados. Parâmetros: page (0-based), size (padrã\
