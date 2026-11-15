@@ -4,7 +4,8 @@
 
 ## Idioma (regra do projeto)
 
-- **Inglês** em tudo que é código e contrato: schema do banco (schemas, tabelas, colunas, constraints), classes, pacotes, métodos, variáveis, endpoints, JSON da API, enums/roles e **campos do payload MQTT** (próxima versão do protocolo).
+- **Inglês** em tudo que é código e contrato: schema do banco (schemas, tabelas, colunas, constraints), classes, pacotes, métodos, variáveis, endpoints, JSON da API e enums/roles.
+- **Exceção — payload MQTT:** os tópicos e campos do protocolo v1.0 continuam em **pt-BR** (`tips_por_minuto`, `tempo_envio`...). Não haverá versão em inglês (decidido); a tradução para os nomes em inglês acontece no worker, ao gravar no banco.
 - **pt-BR** apenas em: mensagens ao usuário (`messages.properties`), comentários no código/SQL, mensagens de commit, documentação e conversa comigo.
 - Ex.: tabela `readings` com coluna `precipitation_mm`, comentário `-- chuva no intervalo`; erro `ErrorCode.STATION_NOT_FOUND` → mensagem "Estação não encontrada".
 
@@ -105,13 +106,13 @@ Tipos e unidades (inferidos dos exemplos — TODO: confirmar com o TCC 1):
 ### ⚠️ Divergências a resolver
 
 1. **O protocolo v1.0 acima é o que está em vigor** (confirmado). O **schema legado** (`docs/legacy-schema.sql`) foi feito para um payload antigo (`pluvio/dados` com `t`, `tips`, `total`, `lq` e bateria junto) e está **desatualizado** — o redesign deve seguir o v1.0 (`dados`/`conf`/`status`).
-2. Pela regra de idioma, os campos do payload vão para **inglês** numa próxima versão do protocolo (ex.: `tips_per_minute`, `fw_gateway`...). Mudanças no **firmware** e no **worker** ficam para depois e serão feitas pelo Eduardo — aqui, só propor o mapeamento PT→EN (pode virar `docs/mqtt-protocol-v2.md`). Não assumir que já mudou: enquanto isso, o worker continua recebendo o v1.0 em português.
+2. **A estrutura dos payloads não vai mudar (decidido):** o protocolo segue no v1.0, com campos em pt-BR. A proposta de v2 em inglês foi descartada. O mapeamento payload (pt-BR) → colunas (inglês) fica no worker e está documentado em `docs/schema.md`.
 
 ## Banco de dados
 
 ### Schema atual (redesign aplicado — V1/V2)
 
-**Ver `docs/schema.md`** (decisões, hypertables, mapeamento do protocolo, mudanças no worker) e `docs/mqtt-protocol-v2.md` (proposta PT→EN). Resumo:
+**Ver `docs/schema.md`** (decisões, hypertables, mapeamento do protocolo v1.0 → colunas, mudanças no worker). Resumo:
 
 - Tudo no schema **`public`** (decidido; sem schemas `app`/`telemetry`).
 - Aplicação: `users`, `gateways`, `stations` (PK `uuidv7()`, chip em `hardware_id` único entre não excluídos, **soft delete** via `deleted_at`, FK composta garante dono da estação = dono do gateway), `spring_session*`, `flyway_schema_history`.

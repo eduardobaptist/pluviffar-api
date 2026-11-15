@@ -47,6 +47,8 @@ Compressão: bloco `DO` no fim da V1, executado só se `timescaledb.license = 't
 
 ## Mapeamento protocolo v1.0 → colunas
 
+O protocolo **permanece no v1.0** (campos em pt-BR; não haverá v2 em inglês — decidido). O banco usa nomes em inglês, e a tradução é feita pelo worker conforme a tabela abaixo.
+
 Chaves: `{gateway_id}` do tópico → `gateways.hardware_id`; `id` do payload → `stations.hardware_id` (ambos `deleted_at IS NULL`).
 
 | Tópico | Payload → coluna |
