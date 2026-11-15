@@ -27,6 +27,9 @@ public record StationResponse(
         @Schema(description = "Se aparece na área pública (só chuva e localização, nunca dados do dono).", example = "true",
                 requiredMode = Schema.RequiredMode.REQUIRED)
         boolean isPublic,
+        @Schema(description = "Se é a estação favorita do usuário logado (uma por usuário; ex.: mostrar primeiro no dashboard).",
+                example = "false", requiredMode = Schema.RequiredMode.REQUIRED)
+        boolean favorite,
         @Schema(description = "Gateway vinculado.", requiredMode = Schema.RequiredMode.REQUIRED)
         GatewaySummary gateway,
         @Schema(description = "Produtor dono (sempre o dono do gateway).", requiredMode = Schema.RequiredMode.REQUIRED)
@@ -48,9 +51,11 @@ public record StationResponse(
         @Schema(description = "Exclusão (soft delete); preenchido só para o ADMIN com includeDeleted=true.")
         Instant deletedAt
 ) {
-    public static StationResponse from(Station s) {
+    /** favoriteStationId: favorita do usuário logado (pode ser null). */
+    public static StationResponse from(Station s, UUID favoriteStationId) {
         return new StationResponse(s.getId(), s.getHardwareId(), s.getName(), s.getDescription(), s.getLatitude(),
-                s.getLongitude(), s.isPublic(), GatewaySummary.from(s.getGateway()), OwnerSummary.from(s.getOwner()),
+                s.getLongitude(), s.isPublic(), s.getId().equals(favoriteStationId), GatewaySummary.from(s.getGateway()),
+                OwnerSummary.from(s.getOwner()),
                 s.getFwVersion(), s.getHwVersion(), s.getSendIntervalS(), s.getMmPerTip(), s.getConfigReportedAt(),
                 s.getCreatedAt(), s.getUpdatedAt(), s.getDeletedAt());
     }

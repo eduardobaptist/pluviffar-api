@@ -117,6 +117,7 @@ Tipos e unidades (inferidos dos exemplos — TODO: confirmar com o TCC 1):
 - Tudo no schema **`public`** (decidido; sem schemas `app`/`telemetry`).
 - Aplicação: `users`, `gateways`, `stations` (PK `uuidv7()`, chip em `hardware_id` único entre não excluídos, **soft delete** via `deleted_at`, FK composta garante dono da estação = dono do gateway), `spring_session*`, `flyway_schema_history`.
 - Telemetria: `readings` e `device_status` (hypertables, chunk 30 dias, PK `(station_id, measured_at)` + `ON CONFLICT DO NOTHING`), `config_reports` (tabela comum, histórico do `conf`).
+- `users.favorite_station_id` (V3): estação favorita do usuário.
 - Seed do ADMIN: `db.migration.V2__SeedAdmin` (Java), lê `PLUVIFFAR_ADMIN_EMAIL`/`PLUVIFFAR_ADMIN_PASSWORD` via placeholders do Flyway.
 - **As migrations vivem neste repo**; o worker só lê/escreve.
 
@@ -205,6 +206,12 @@ Dois perfis (roles):
 - Exclusão: lógica (`deleted_at`); libera o chip para novo cadastro. Gateway com estação ativa não pode ser excluído (409 `GATEWAY_HAS_ACTIVE_STATIONS`). Estação excluída tem `is_public` desligado.
 - ADMIN: filtros `ownerId` e `includeDeleted` nas listagens e vê excluídos no detalhe (mas não altera). Para PRODUCER esses filtros são ignorados.
 - Estação: latitude/longitude juntas ou nenhuma (`locationComplete`); pública exige localização (`publicWithLocation`). O `StationResponse` traz dados do dono — **não usar na área pública** (criar DTO próprio).
+
+### Estação favorita — implementado
+
+- **Uma por usuário** (`users.favorite_station_id`, V3). `PUT`/`DELETE /api/stations/{id}/favorite` (204, idempotentes; marcar outra substitui a anterior). Exposta **só** no campo `StationResponse.favorite` (listagem e detalhe): o front decide o que fazer (ex.: mostrar primeiro no dashboard). Não vem no login nem no `/me` (decidido).
+- PRODUCER só favorita as próprias estações ativas (as de outro → 404); ADMIN pode favoritar qualquer ativa, mas o favorito é de cada usuário (não muda o do produtor).
+- A coluna não é limpa ao excluir/transferir a estação: ela some das listagens do usuário, então o favorito antigo não aparece.
 
 ### Telemetria (`/api/stations/{id}/...`) — implementado
 
@@ -305,4 +312,4 @@ O frontend será construído depois, também com o Claude, a partir do contrato 
 - Antes de mudanças grandes (novo módulo, mudança de schema, auth), propor um plano curto.
 - Mudança no protocolo MQTT ou no schema → atualizar este arquivo (ou `docs/`) no mesmo commit.
 - Conversar comigo e comentar em português; código, schema e contratos em inglês (ver "Idioma").
-- Feito: schema (V1/V2), entidades JPA, módulo de usuários, auth por sessão + CSRF, infra de erros, contrato OpenAPI, CRUD de gateways e estações com checagem de posse, consulta de telemetria e área pública. Pendências conhecidas: ajuste do worker ao novo schema (`docs/schema.md`), deploy na VPS (TODOs de infraestrutura), rate limit na área pública, decisões de TODO acima (domínios/CORS, TCC 4).
+- Feito: schema (V1/V2), entidades JPA, módulo de usuários, auth por sessão + CSRF, infra de erros, contrato OpenAPI, CRUD de gateways e estações com checagem de posse, estação favorita, consulta de telemetria e área pública. Pendências conhecidas: ajuste do worker ao novo schema (`docs/schema.md`), deploy na VPS (TODOs de infraestrutura), rate limit na área pública, decisões de TODO acima (domínios/CORS, TCC 4).

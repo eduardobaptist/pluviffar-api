@@ -6,6 +6,7 @@ import br.com.pluviffar.api.user.entities.User;
 import org.springframework.data.jpa.domain.Specification;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Query;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -20,6 +21,10 @@ public interface UserRepository extends JpaRepository<User, UUID>, JpaSpecificat
     boolean existsByEmail(String email);
 
     boolean existsByEmailAndIdNot(String email, UUID id);
+
+    /** Estação favorita gravada (sem checar se ainda é visível para o usuário). */
+    @Query("select u.favoriteStationId from User u where u.id = :id")
+    Optional<UUID> findFavoriteStationId(UUID id);
 
     /** Filtros opcionais da listagem: busca em nome/email, role e ativo. */
     static Specification<User> filter(String search, Role role, Boolean active) {

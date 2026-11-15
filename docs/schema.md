@@ -18,6 +18,7 @@ flyway_schema_history
 |---|---|
 | `V1__initial_schema.sql` | tabelas (schema `public`), hypertables, sessões, compressão condicional |
 | `V2__SeedAdmin.java` | primeiro ADMIN a partir de `PLUVIFFAR_ADMIN_EMAIL` / `PLUVIFFAR_ADMIN_PASSWORD` (BCrypt gerado na migration; mín. 12 caracteres) |
+| `V3__user_favorite_station.sql` | `users.favorite_station_id` (FK → `stations`, `ON DELETE SET NULL`): estação favorita do usuário |
 
 ## Decisões
 

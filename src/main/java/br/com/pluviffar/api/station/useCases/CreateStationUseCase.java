@@ -31,6 +31,6 @@ public class CreateStationUseCase {
         station.setLatitude(request.latitude());
         station.setLongitude(request.longitude());
         station.setPublic(request.isPublic());
-        return StationResponse.from(stationRepository.saveAndFlush(station));
+        return StationResponse.from(stationRepository.saveAndFlush(station), null); // recém-criada nunca é favorita
     }
 }

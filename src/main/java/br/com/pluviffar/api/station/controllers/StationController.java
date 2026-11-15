@@ -7,6 +7,7 @@ import br.com.pluviffar.api.station.dtos.StationResponse;
 import br.com.pluviffar.api.station.dtos.UpdateStationRequest;
 import br.com.pluviffar.api.station.useCases.CreateStationUseCase;
 import br.com.pluviffar.api.station.useCases.DeleteStationUseCase;
+import br.com.pluviffar.api.station.useCases.FavoriteStationUseCase;
 import br.com.pluviffar.api.station.useCases.FindStationUseCase;
 import br.com.pluviffar.api.station.useCases.ListStationsUseCase;
 import br.com.pluviffar.api.station.useCases.UpdateStationUseCase;
@@ -48,6 +49,7 @@ public class StationController {
     private final FindStationUseCase findStationUseCase;
     private final UpdateStationUseCase updateStationUseCase;
     private final DeleteStationUseCase deleteStationUseCase;
+    private final FavoriteStationUseCase favoriteStationUseCase;
 
     @PostMapping
     @Operation(summary = "Cadastrar estação",
@@ -114,6 +116,30 @@ public class StationController {
             content = @Content(schema = @Schema(implementation = ApiErrorDTO.class)))
     public ResponseEntity<Void> delete(@PathVariable UUID id) {
         deleteStationUseCase.execute(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @PutMapping("/{id}/favorite")
+    @Operation(summary = "Marcar estação como favorita",
+            description = "Define a estação favorita do usuário logado (uma por usuário; substitui a anterior). "
+                    + "Aparece como favorite=true na listagem e no detalhe (ex.: o front mostra primeiro no dashboard). "
+                    + "Idempotente.")
+    @ApiResponse(responseCode = "204", description = "Estação marcada como favorita.")
+    @ApiResponse(responseCode = "404", description = "STATION_NOT_FOUND (inexistente, excluída ou de outro produtor).",
+            content = @Content(schema = @Schema(implementation = ApiErrorDTO.class)))
+    public ResponseEntity<Void> markFavorite(@PathVariable UUID id) {
+        favoriteStationUseCase.mark(id);
+        return ResponseEntity.noContent().build();
+    }
+
+    @DeleteMapping("/{id}/favorite")
+    @Operation(summary = "Desmarcar estação favorita",
+            description = "Remove a favorita do usuário logado, se for esta estação. Idempotente.")
+    @ApiResponse(responseCode = "204", description = "Estação não é mais a favorita.")
+    @ApiResponse(responseCode = "404", description = "STATION_NOT_FOUND (inexistente, excluída ou de outro produtor).",
+            content = @Content(schema = @Schema(implementation = ApiErrorDTO.class)))
+    public ResponseEntity<Void> unmarkFavorite(@PathVariable UUID id) {
+        favoriteStationUseCase.unmark(id);
         return ResponseEntity.noContent().build();
     }
 }

@@ -6,6 +6,7 @@ import br.com.pluviffar.api.shared.exceptions.ErrorCode;
 import br.com.pluviffar.api.station.dtos.StationResponse;
 import br.com.pluviffar.api.station.entities.Station;
 import br.com.pluviffar.api.station.repositories.StationRepository;
+import br.com.pluviffar.api.user.repositories.UserRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,11 +22,13 @@ import java.util.UUID;
 public class FindStationUseCase {
 
     private final StationRepository stationRepository;
+    private final UserRepository userRepository;
 
     @Transactional(readOnly = true)
     public StationResponse execute(UUID id) {
         UUID scope = CurrentUser.ownerScope();
-        return StationResponse.from(find(id, scope, scope == null));
+        UUID favoriteId = userRepository.findFavoriteStationId(CurrentUser.get().getId()).orElse(null);
+        return StationResponse.from(find(id, scope, scope == null), favoriteId);
     }
 
     /** Estação ativa acessível pelo usuário atual (para alterar/excluir). */

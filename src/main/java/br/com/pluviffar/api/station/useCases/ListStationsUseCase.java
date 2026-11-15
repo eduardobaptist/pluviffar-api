@@ -21,6 +21,7 @@ public class ListStationsUseCase {
     public static final Set<String> SORTABLE_FIELDS = Set.of("name", "hardwareId", "createdAt", "updatedAt");
 
     private final StationRepository stationRepository;
+    private final FavoriteStationUseCase favoriteStationUseCase;
 
     @Transactional(readOnly = true)
     public PageResponse<StationResponse> execute(UUID gatewayId, UUID ownerId, Boolean isPublic, String search,
@@ -30,6 +31,7 @@ public class ListStationsUseCase {
         boolean admin = scope == null;
         var spec = StationRepository.visible(scope, admin && includeDeleted)
                 .and(StationRepository.filter(gatewayId, admin ? ownerId : null, isPublic, search));
-        return PageResponse.of(stationRepository.findAll(spec, pageable), StationResponse::from);
+        UUID favoriteId = favoriteStationUseCase.storedFavoriteId();
+        return PageResponse.of(stationRepository.findAll(spec, pageable), s -> StationResponse.from(s, favoriteId));
     }
 }

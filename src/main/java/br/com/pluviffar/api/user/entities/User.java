@@ -51,6 +51,10 @@ public class User {
     @Column(name = "must_change_password", nullable = false)
     private boolean mustChangePassword = true;
 
+    /** Estação favorita (uma por usuário); exposta só em StationResponse.favorite. */
+    @Column(name = "favorite_station_id")
+    private UUID favoriteStationId;
+
     @CreationTimestamp
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;

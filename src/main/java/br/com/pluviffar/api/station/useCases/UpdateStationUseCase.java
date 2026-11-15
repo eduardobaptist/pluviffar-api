@@ -19,6 +19,7 @@ public class UpdateStationUseCase {
     private final StationRepository stationRepository;
     private final FindStationUseCase findStationUseCase;
     private final FindGatewayUseCase findGatewayUseCase;
+    private final FavoriteStationUseCase favoriteStationUseCase;
 
     @Transactional
     public StationResponse execute(UUID id, UpdateStationRequest request) {
@@ -31,6 +32,6 @@ public class UpdateStationUseCase {
         station.setLatitude(request.latitude());
         station.setLongitude(request.longitude());
         station.setPublic(request.isPublic());
-        return StationResponse.from(stationRepository.saveAndFlush(station));
+        return StationResponse.from(stationRepository.saveAndFlush(station), favoriteStationUseCase.storedFavoriteId());
     }
 }

@@ -390,6 +390,109 @@ paths:
       security:
       - sessionCookie: []
         csrfHeader: []
+  /api/stations/{id}/favorite:
+    put:
+      tags:
+      - Estações
+      summary: Marcar estação como favorita
+      description: "Define a estação favorita do usuário logado (uma por usuário;\
+        \ substitui a anterior). Aparece como favorite=true na listagem e no detalhe\
+        \ (ex.: o front mostra primeiro no dashboard). Idempotente."
+      operationId: markFavorite
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "204":
+          description: Estação marcada como favorita.
+        "404":
+          description: "STATION_NOT_FOUND (inexistente, excluída ou de outro produtor)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "400":
+          description: "VALIDATION_ERROR (com errors por campo), MALFORMED_REQUEST\
+            \ ou INVALID_PARAMETER."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: "UNAUTHENTICATED: sem sessão ou sessão expirada."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: "ACCESS_DENIED, CSRF_TOKEN_INVALID ou PASSWORD_CHANGE_REQUIRED."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          description: INTERNAL_ERROR.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      security:
+      - sessionCookie: []
+        csrfHeader: []
+    delete:
+      tags:
+      - Estações
+      summary: Desmarcar estação favorita
+      description: "Remove a favorita do usuário logado, se for esta estação. Idempotente."
+      operationId: unmarkFavorite
+      parameters:
+      - name: id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        "204":
+          description: Estação não é mais a favorita.
+        "404":
+          description: "STATION_NOT_FOUND (inexistente, excluída ou de outro produtor)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "400":
+          description: "VALIDATION_ERROR (com errors por campo), MALFORMED_REQUEST\
+            \ ou INVALID_PARAMETER."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "401":
+          description: "UNAUTHENTICATED: sem sessão ou sessão expirada."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "403":
+          description: "ACCESS_DENIED, CSRF_TOKEN_INVALID ou PASSWORD_CHANGE_REQUIRED."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+        "500":
+          description: INTERNAL_ERROR.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApiError"
+      security:
+      - sessionCookie: []
+        csrfHeader: []
   /api/gateways/{id}:
     get:
       tags:
@@ -2104,6 +2207,11 @@ components:
           description: "Se aparece na área pública (só chuva e localização, nunca\
             \ dados do dono)."
           example: true
+        favorite:
+          type: boolean
+          description: "Se é a estação favorita do usuário logado (uma por usuário;\
+            \ ex.: mostrar primeiro no dashboard)."
+          example: false
         gateway:
           $ref: "#/components/schemas/GatewaySummary"
           description: Gateway vinculado.
@@ -2148,6 +2256,7 @@ components:
           description: Exclusão (soft delete); preenchido só para o ADMIN com includeDeleted=true.
       required:
       - createdAt
+      - favorite
       - gateway
       - hardwareId
       - id
