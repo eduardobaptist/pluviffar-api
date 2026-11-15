@@ -15,7 +15,7 @@ import java.util.UUID;
 /** Status do dispositivo (tópico status) — hypertable, escrita só pelo worker; somente leitura na API. */
 @Entity
 @Immutable
-@Table(name = "device_status", schema = "telemetry")
+@Table(name = "device_status")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class DeviceStatus {

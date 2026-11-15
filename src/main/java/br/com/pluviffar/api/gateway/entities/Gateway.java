@@ -24,7 +24,7 @@ import java.util.UUID;
  * Soft delete via deletedAt: as consultas devem filtrar deletedAt IS NULL.
  */
 @Entity
-@Table(name = "gateways", schema = "app")
+@Table(name = "gateways")
 @Getter
 @Setter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)

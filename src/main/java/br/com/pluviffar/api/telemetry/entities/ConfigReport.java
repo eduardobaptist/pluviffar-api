@@ -16,7 +16,7 @@ import java.util.UUID;
 /** Histórico do tópico conf (tabela comum, escrita só pelo worker quando algo muda); somente leitura na API. */
 @Entity
 @Immutable
-@Table(name = "config_reports", schema = "telemetry")
+@Table(name = "config_reports")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class ConfigReport {

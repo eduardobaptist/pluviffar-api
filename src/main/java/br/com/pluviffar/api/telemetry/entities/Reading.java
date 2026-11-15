@@ -18,7 +18,7 @@ import java.time.Instant;
  */
 @Entity
 @Immutable
-@Table(name = "readings", schema = "telemetry")
+@Table(name = "readings")
 @Getter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 public class Reading {

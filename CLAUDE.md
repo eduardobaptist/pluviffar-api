@@ -113,8 +113,9 @@ Tipos e unidades (inferidos dos exemplos — TODO: confirmar com o TCC 1):
 
 **Ver `docs/schema.md`** (decisões, hypertables, mapeamento do protocolo, mudanças no worker) e `docs/mqtt-protocol-v2.md` (proposta PT→EN). Resumo:
 
-- `app`: `users`, `gateways`, `stations` (PK `uuidv7()`, chip em `hardware_id` único entre não excluídos, **soft delete** via `deleted_at`, FK composta garante dono da estação = dono do gateway), `spring_session*`, `flyway_schema_history`.
-- `telemetry`: `readings` e `device_status` (hypertables, chunk 30 dias, PK `(station_id, measured_at)` + `ON CONFLICT DO NOTHING`), `config_reports` (tabela comum, histórico do `conf`).
+- Tudo no schema **`public`** (decidido; sem schemas `app`/`telemetry`).
+- Aplicação: `users`, `gateways`, `stations` (PK `uuidv7()`, chip em `hardware_id` único entre não excluídos, **soft delete** via `deleted_at`, FK composta garante dono da estação = dono do gateway), `spring_session*`, `flyway_schema_history`.
+- Telemetria: `readings` e `device_status` (hypertables, chunk 30 dias, PK `(station_id, measured_at)` + `ON CONFLICT DO NOTHING`), `config_reports` (tabela comum, histórico do `conf`).
 - Seed do ADMIN: `db.migration.V2__SeedAdmin` (Java), lê `PLUVIFFAR_ADMIN_EMAIL`/`PLUVIFFAR_ADMIN_PASSWORD` via placeholders do Flyway.
 - **As migrations vivem neste repo**; o worker só lê/escreve.
 
@@ -137,7 +138,7 @@ Resumo: schema `dados` com `estacoes` (PK = chip ID em hex, auto-cadastrada pelo
     - leituras de chuva (tópico `dados`), com deduplicação (PK com tempo; considerar `seq`);
     - status do dispositivo (tópico `status`: bateria, RSSI, uptime) — hypertable separada;
     - configuração (tópico `conf`: versões de fw/hw, `send_interval`, `mm_per_tip`) — estado atual na estação/gateway e/ou histórico.
-- **Separar** tabelas da aplicação e de telemetria (ex.: schemas `app` e `telemetry` — sugestão, decidir).
+- Tabelas da aplicação e de telemetria ficam juntas no schema `public` (decidido).
 - Manter o bloco de compressão **condicional à licença** do Timescale (produção é edição Apache). Sem retenção: dado medido não se apaga.
 - Avaliar `real` vs `numeric`/`double precision` para mm, e índices para consultas por estação + período.
 - Atualizar o **worker** para o novo schema é consequência — listar o que muda para ele.
@@ -233,7 +234,7 @@ Dois perfis (roles):
 
 - **Spring Session JDBC**: sessões persistidas no Postgres → sobrevivem a restart/deploy e podem ser consultadas/revogadas por usuário.
     - Tabelas `SPRING_SESSION` e `SPRING_SESSION_ATTRIBUTES` criadas por **migration Flyway** (copiar o `schema-postgresql.sql` oficial do Spring Session da versão em uso). `spring.session.jdbc.initialize-schema=never`.
-    - Tabelas de sessão no schema `app` (`spring.session.jdbc.table-name=app.SPRING_SESSION`).
+    - Tabelas de sessão no schema `public` (`spring.session.jdbc.table-name=SPRING_SESSION`).
 - **Cookie de sessão** (`SESSION`): `HttpOnly`, `Secure`, `SameSite=Lax`. Atributos por profile (`dev` em localhost, `prod`).
 - **Timeout por inatividade** configurável (`spring.session.timeout`, ex.: `30m`), renovado a cada requisição. "Manter conectado" (remember-me) fica fora por enquanto.
 - **Login JSON** (sem form login padrão): `POST /api/auth/login` recebe email + senha, autentica via `AuthenticationManager`, cria a sessão e salva o `SecurityContext` (`HttpSessionSecurityContextRepository` / `SecurityContextRepository`). Regenerar o ID da sessão no login (proteção contra session fixation).

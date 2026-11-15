@@ -67,12 +67,12 @@ class TelemetryAndPublicAreaTest extends IntegrationTest {
         insertReading(privateStationId, now.minus(5, ChronoUnit.MINUTES), "9.99", 50, 1);
 
         jdbc.update("""
-                INSERT INTO telemetry.device_status (station_id, gateway_id, measured_at, battery_v, battery_pct,
+                INSERT INTO device_status (station_id, gateway_id, measured_at, battery_v, battery_pct,
                        rssi_gateway_dbm, rssi_station_dbm, uptime_gateway_s, uptime_station_s)
                 VALUES (?, ?, ?, 6.5, 74, -86, -60, 86432, 85321)""",
                 UUID.fromString(publicStationId), UUID.fromString(gatewayId), utc(now.minus(1, ChronoUnit.MINUTES)));
         jdbc.update("""
-                INSERT INTO telemetry.config_reports (station_id, gateway_id, fw_gateway, hw_gateway, fw_station, hw_station,
+                INSERT INTO config_reports (station_id, gateway_id, fw_gateway, hw_gateway, fw_station, hw_station,
                        send_interval_s, mm_per_tip)
                 VALUES (?, ?, '1.0.0', '1.0', '1.0.1', '1.0', 60, 0.200)""",
                 UUID.fromString(publicStationId), UUID.fromString(gatewayId));
@@ -235,7 +235,7 @@ class TelemetryAndPublicAreaTest extends IntegrationTest {
     }
 
     private void insertReading(String stationId, Instant measuredAt, String mm, int tips, long seq) {
-        jdbc.update("INSERT INTO telemetry.readings (station_id, measured_at, tips_per_minute, precipitation_mm, seq) "
+        jdbc.update("INSERT INTO readings (station_id, measured_at, tips_per_minute, precipitation_mm, seq) "
                 + "VALUES (?, ?, ?, ?, ?)", UUID.fromString(stationId), utc(measuredAt), tips, new BigDecimal(mm), seq);
     }
 

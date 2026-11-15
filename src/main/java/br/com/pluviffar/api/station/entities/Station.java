@@ -27,7 +27,7 @@ import java.util.UUID;
  * Soft delete via deletedAt.
  */
 @Entity
-@Table(name = "stations", schema = "app")
+@Table(name = "stations")
 @Getter
 @Setter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)

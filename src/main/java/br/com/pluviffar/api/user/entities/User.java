@@ -20,7 +20,7 @@ import java.util.UUID;
 
 /** Usuário único da plataforma; o perfil é definido pela role (sem fluxos de login separados). */
 @Entity
-@Table(name = "users", schema = "app")
+@Table(name = "users")
 @Getter
 @Setter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)

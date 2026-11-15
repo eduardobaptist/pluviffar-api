@@ -51,7 +51,7 @@ public class TelemetryQueries {
                 SELECT time_bucket(CAST(:width AS interval), measured_at, :tz) AS bucket_start,
                        sum(precipitation_mm) AS precipitation_mm,
                        count(*)              AS readings_count
-                  FROM telemetry.readings
+                  FROM readings
                  WHERE station_id = :stationId
                    AND measured_at >= :from AND measured_at < :to
                  GROUP BY bucket_start
@@ -74,7 +74,7 @@ public class TelemetryQueries {
                        coalesce(sum(precipitation_mm) FILTER (WHERE measured_at >= :d1), 0)    AS last24h_mm,
                        coalesce(sum(precipitation_mm) FILTER (WHERE measured_at >= :d7), 0)    AS last7d_mm,
                        coalesce(sum(precipitation_mm), 0)                                     AS last30d_mm
-                  FROM telemetry.readings
+                  FROM readings
                  WHERE station_id = :stationId
                    AND measured_at >= :d30 AND measured_at <= :now
                 """;
@@ -97,12 +97,12 @@ public class TelemetryQueries {
         }
         String sql = """
                 SELECT s.id AS station_id,
-                       (SELECT r.measured_at FROM telemetry.readings r
+                       (SELECT r.measured_at FROM readings r
                          WHERE r.station_id = s.id AND r.measured_at <= :now
                          ORDER BY r.measured_at DESC LIMIT 1) AS last_reading_at,
-                       (SELECT coalesce(sum(r.precipitation_mm), 0) FROM telemetry.readings r
+                       (SELECT coalesce(sum(r.precipitation_mm), 0) FROM readings r
                          WHERE r.station_id = s.id AND r.measured_at >= :d1 AND r.measured_at <= :now) AS last24h_mm
-                  FROM app.stations s
+                  FROM stations s
                  WHERE s.id IN (:ids)
                 """;
         var params = new MapSqlParameterSource()

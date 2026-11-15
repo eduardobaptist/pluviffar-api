@@ -34,7 +34,7 @@ public class V2__SeedAdmin extends BaseJavaMigration {
         }
 
         String sql = """
-                INSERT INTO app.users (name, email, password_hash, role, must_change_password)
+                INSERT INTO users (name, email, password_hash, role, must_change_password)
                 VALUES (?, ?, ?, 'ADMIN', true)
                 """;
         try (PreparedStatement ps = context.getConnection().prepareStatement(sql)) {

@@ -5,8 +5,8 @@ Fonte da verdade: `src/main/resources/db/migration/` (Flyway). Este documento ex
 ## Visão geral
 
 ```
-schema app                                         schema telemetry
-──────────                                         ────────────────
+schema public (aplicação + telemetria)
+──────────────────────────────────────
 users ─1───N─ gateways ─1───N─ stations ◀── FK ── readings        (hypertable, 30 dias)
                  ▲   (id, owner_id)  │    ◀── FK ── device_status   (hypertable, 30 dias)
                  └──── FK composta ──┘    ◀── FK ── config_reports  (tabela comum)
@@ -16,12 +16,12 @@ flyway_schema_history
 
 | Migration | Conteúdo |
 |---|---|
-| `V1__initial_schema.sql` | schemas `app`/`telemetry`, tabelas, hypertables, sessões, compressão condicional |
+| `V1__initial_schema.sql` | tabelas (schema `public`), hypertables, sessões, compressão condicional |
 | `V2__SeedAdmin.java` | primeiro ADMIN a partir de `PLUVIFFAR_ADMIN_EMAIL` / `PLUVIFFAR_ADMIN_PASSWORD` (BCrypt gerado na migration; mín. 12 caracteres) |
 
 ## Decisões
 
-- **`app` × `telemetry`**: a API escreve em `app` via JPA; o worker escreve em `telemetry` (e só nas colunas de config de `app.stations`/`app.gateways`). As migrations vivem **neste repo**; o worker não roda DDL.
+- **Tudo no schema `public`** (decidido): sem separar aplicação e telemetria em schemas. A API escreve nas tabelas da aplicação via JPA; o worker escreve em `readings`/`device_status`/`config_reports` (e só nas colunas de config de `stations`/`gateways`). As migrations vivem **neste repo**; o worker não roda DDL.
 - **PK `uuid` (`uuidv7()`) + `hardware_id` único**: a telemetria referencia o *cadastro*, não o chip. Se o equipamento for removido e recadastrado por outro produtor, o histórico antigo não vaza para o novo dono.
 - **Soft delete (`deleted_at`)**: dado medido não se apaga e as FKs da telemetria são `ON DELETE RESTRICT`. `hardware_id` é único só entre os registros não excluídos (índice parcial).
 - **`stations.owner_id` + FK composta `(gateway_id, owner_id) → gateways(id, owner_id) ON UPDATE CASCADE`**: a posse é checada em uma tabela só, e o banco garante que o dono da estação é o dono do gateway. Ao transferir um gateway, as estações acompanham. No JPA são dois `@ManyToOne` independentes, e o use case seta `owner = gateway.owner`.
@@ -36,8 +36,8 @@ flyway_schema_history
 
 | Tabela | Tempo | Chunk | PK / dedup | Índices extras |
 |---|---|---|---|---|
-| `telemetry.readings` | `measured_at` | 30 dias | `(station_id, measured_at)` + `ON CONFLICT DO NOTHING` | padrão `measured_at DESC` |
-| `telemetry.device_status` | `measured_at` | 30 dias | `(station_id, measured_at)` | `(gateway_id, measured_at DESC)` |
+| `readings` | `measured_at` | 30 dias | `(station_id, measured_at)` + `ON CONFLICT DO NOTHING` | padrão `measured_at DESC` |
+| `device_status` | `measured_at` | 30 dias | `(station_id, measured_at)` | `(gateway_id, measured_at DESC)` |
 
 `seq` fica fora da PK (zera no reboot): serve para detectar lacunas e duplicatas. Chunk de 30 dias ≈ 300 MB com 100 estações a 1 leitura/min, bem abaixo de 25% da RAM.
 
@@ -51,9 +51,9 @@ Chaves: `{gateway_id}` do tópico → `gateways.hardware_id`; `id` do payload �
 
 | Tópico | Payload → coluna |
 |---|---|
-| `dados` → `telemetry.readings` | `id`→`station_id` (lookup) · `tips_por_minuto`→`tips_per_minute` · `mm`→`precipitation_mm` · `timestamp`→`measured_at` (`to_timestamp`) · `seq`→`seq` |
-| `status` → `telemetry.device_status` | `id`→`station_id` · tópico→`gateway_id` · `vbat`→`battery_v` · `bat`→`battery_pct` · `rssi_gt`→`rssi_gateway_dbm` · `rssi_pluv`→`rssi_station_dbm` · `uptime_gt_s`→`uptime_gateway_s` · `uptime_pluv_s`→`uptime_station_s` · `timestamp`→`measured_at` |
-| `conf` → estado atual + `telemetry.config_reports` | `vers_gt`→`gateways.fw_version`/`fw_gateway` · `hw_gt`→`gateways.hw_version`/`hw_gateway` · `vers_pl`→`stations.fw_version`/`fw_station` · `hw_pl`→`stations.hw_version`/`hw_station` · `tempo_envio`→`send_interval_s` · `mm_tips`→`mm_per_tip` · `now()`→`config_reported_at`/`reported_at` |
+| `dados` → `readings` | `id`→`station_id` (lookup) · `tips_por_minuto`→`tips_per_minute` · `mm`→`precipitation_mm` · `timestamp`→`measured_at` (`to_timestamp`) · `seq`→`seq` |
+| `status` → `device_status` | `id`→`station_id` · tópico→`gateway_id` · `vbat`→`battery_v` · `bat`→`battery_pct` · `rssi_gt`→`rssi_gateway_dbm` · `rssi_pluv`→`rssi_station_dbm` · `uptime_gt_s`→`uptime_gateway_s` · `uptime_pluv_s`→`uptime_station_s` · `timestamp`→`measured_at` |
+| `conf` → estado atual + `config_reports` | `vers_gt`→`gateways.fw_version`/`fw_gateway` · `hw_gt`→`gateways.hw_version`/`hw_gateway` · `vers_pl`→`stations.fw_version`/`fw_station` · `hw_pl`→`stations.hw_version`/`hw_station` · `tempo_envio`→`send_interval_s` · `mm_tips`→`mm_per_tip` · `now()`→`config_reported_at`/`reported_at` |
 
 ## O que muda para o worker (a implementar depois)
 
@@ -61,7 +61,7 @@ Chaves: `{gateway_id}` do tópico → `gateways.hardware_id`; `id` do payload �
 2. Fim do auto-cadastro: resolver gateway e estação por `hardware_id` (não excluídos); se desconhecido → descartar + log. Cache com TTL curto (1–5 min).
 3. Descartar se `stations.gateway_id` ≠ gateway do tópico.
 4. `dados`/`status` → `INSERT ... ON CONFLICT (station_id, measured_at) DO NOTHING`.
-5. `conf` → numa transação: `UPDATE` das colunas de config em `app.stations`/`app.gateways` e `INSERT` em `telemetry.config_reports` se mudou algo.
+5. `conf` → numa transação: `UPDATE` das colunas de config em `stations`/`gateways` e `INSERT` em `config_reports` se mudou algo.
 6. Validar timestamp (rejeitar < 2024-01-01 ou > agora + 10 min).
 7. Futuro: role `pluviffar_worker` com grants mínimos.
 
