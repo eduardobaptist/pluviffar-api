@@ -134,6 +134,7 @@ Resumo: schema `dados` com `estacoes` (PK = chip ID em hex, auto-cadastrada pelo
 - **Posse:** gateways e estações pertencem a um produtor. O `PRODUCER` faz CRUD completo dos **próprios** gateways e estações.
 - **Visibilidade pública:** cada estação tem um flag definido pelo dono (ex.: `is_public`). A área pública (sem login) mostra **apenas** dados de estações públicas, sem expor dados do dono.
 - **Cadastro só pela plataforma (decidido):** gateways e estações existem no sistema **apenas** se cadastrados via API (pelo produtor ou admin), informando o chip ID. **Fim do auto-cadastro pelo worker.** Só leituras/status de equipamentos cadastrados são computados; o worker vai **ignorar** pacotes de equipamentos desconhecidos. O ajuste no worker fica para depois (não implementar aqui) — mas o schema deve suportar isso: `owner_id` obrigatório, FKs das hypertables para estações cadastradas, chip ID único. Esse comportamento pode ser revisto no futuro.
+    - **Como o produtor descobre os IDs (decidido):** a página HTML de configuração do gateway (firmware, TCC 1) exibe o ID do gateway e dos pluviômetros que ele ouve, **no mesmo formato do `hardwareId` da API** (minúsculas, mesmo prefixo, ex.: `gt-570db4`, `580db2`). Sem auto-cadastro via HTTP pelo firmware e sem tabela de dispositivos pendentes.
 - **Telemetria (hypertables):**
     - leituras de chuva (tópico `dados`), com deduplicação (PK com tempo; considerar `seq`);
     - status do dispositivo (tópico `status`: bateria, RSSI, uptime) — hypertable separada;
