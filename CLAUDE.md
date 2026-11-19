@@ -38,7 +38,7 @@ Pluviômetro ──ESP-NOW──▶ Gateway (rede doméstica do agricultor)
 ```
 
 - **Um único banco** PostgreSQL serve a aplicação e o data warehouse (decisão de arquitetura: Postgres + TimescaleDB em vez de InfluxDB).
-- O **worker** é quem consome o MQTT e grava os dados brutos. A API **não** assina o broker. TODO: confirmar onde o worker vive (repo separado? linguagem?).
+- O **worker** é quem consome o MQTT e grava os dados brutos. A API **não** assina o broker. O worker vive em `worker/` neste repo: Python 3 (`paho-mqtt` 2 + `psycopg` 3), cliente MQTT (não abre porta), roda como serviço systemd `pluvio-worker` em `/opt/pluvio-worker` (instalado por `worker/instalar.sh`, config em `.env`, ver `worker/.env.example`). Funcionamento detalhado em `worker/resumo-worker.md`.
 - TODO: a API vai **publicar** em `pluviffar/{gateway_id}/conf` (ex.: alterar `tempo_envio`)? Ou config é só leitura?
 
 ## Hardware (TCC 1, para contexto)
@@ -50,7 +50,7 @@ Pluviômetro ──ESP-NOW──▶ Gateway (rede doméstica do agricultor)
 
 - VPS privada: 2 vCPU, 8 GB RAM, 100 GB NVMe, 8 TB de banda. IPv4 `72.60.10.6`, domínio `pluviffar.com.br`.
 - Ubuntu Server 26.04. Usuário SSH `pluviffar`.
-- **Apache** instalado servindo um `index.html` do projeto em `/var/www/html` (porta 80). Se a API ficar atrás de proxy reverso, o caminho natural é o próprio Apache (`mod_proxy`) — TODO: confirmar.
+- **Apache** (porta 80, vhost `/etc/apache2/sites-available/pluviffar.conf`) serve o front em `/var/www/pluviffar` e faz proxy de `/api/` para a API, ver `docs/deploy.md`.
 - **Node.js v22.22.1** + npm instalados via apt (relevante se o frontend for Next.js).
 - **Mosquitto** (instalado via apt):
     - `/etc/mosquitto/conf.d/pluviometro.conf`: `listener 1883 0.0.0.0`, `allow_anonymous false`, `password_file /etc/mosquitto/passwd`.
@@ -62,7 +62,7 @@ Pluviômetro ──ESP-NOW──▶ Gateway (rede doméstica do agricultor)
 - TimescaleDB 2.25.1, **edição Apache** → **sem compressão** e sem recursos da licença TSL. Não usar `add_compression_policy`, continuous aggregates com recursos TSL etc. sem checar.
 - O time mantém o "Relatório de Bordo PluvIFFar 2026" com instalações e configurações do servidor.
 - **Credenciais nunca neste arquivo nem no repo**: ficam em variáveis de ambiente / `.env` / `CLAUDE.local.md` (gitignored). Na API: `SPRING_DATASOURCE_URL`, `SPRING_DATASOURCE_USERNAME`, `SPRING_DATASOURCE_PASSWORD`, senha da seed do ADMIN etc. via env (ver `.env.example`).
-- TODO: como a API será deployada (jar + systemd? Docker? proxy reverso nginx/caddy + TLS?).
+- **Deploy (decidido):** jar + systemd (`pluviffar-api`, `/opt/pluviffar-api`, só em `127.0.0.1:8080`) atrás do Apache (`/api/` por `mod_proxy`; front Vite estático em `/var/www/pluviffar`). **Sem TLS por enquanto** → `pluviffar.security.secure-cookies=false` no `.env` da VPS. Passo a passo em `docs/deploy.md`.
 - **Ambiente de dev: Docker** (`compose.yaml` na raiz): TimescaleDB com PostgreSQL 18 na edição Apache (igual à produção). Banco, usuário e senha `pluviffar`. Em dev o usuário é superusuário; na VPS **não** é — migrations não devem depender de criar extensões (a `timescaledb` já existe no banco).
 
 ## Protocolo MQTT PluvIFFar v1.0 (out/2026)
@@ -135,7 +135,7 @@ Resumo: schema `dados` com `estacoes` (PK = chip ID em hex, auto-cadastrada pelo
     - `user` com role `ADMIN` ou `PRODUCER`.
 - **Posse:** gateways e estações pertencem a um produtor. O `PRODUCER` faz CRUD completo dos **próprios** gateways e estações.
 - **Visibilidade pública:** cada estação tem um flag definido pelo dono (ex.: `is_public`). A área pública (sem login) mostra **apenas** dados de estações públicas, sem expor dados do dono.
-- **Cadastro só pela plataforma (decidido):** gateways e estações existem no sistema **apenas** se cadastrados via API (pelo produtor ou admin), informando o chip ID. **Fim do auto-cadastro pelo worker.** Só leituras/status de equipamentos cadastrados são computados; o worker vai **ignorar** pacotes de equipamentos desconhecidos. O ajuste no worker fica para depois (não implementar aqui) — mas o schema deve suportar isso: `owner_id` obrigatório, FKs das hypertables para estações cadastradas, chip ID único. Esse comportamento pode ser revisto no futuro.
+- **Cadastro só pela plataforma (decidido):** gateways e estações existem no sistema **apenas** se cadastrados via API (pelo produtor ou admin), informando o chip ID. **Fim do auto-cadastro pelo worker.** Só leituras/status de equipamentos cadastrados são computados; o worker vai **ignorar** pacotes de equipamentos desconhecidos. O worker já faz isso (adaptado ao V1); o schema suporta: `owner_id` obrigatório, FKs das hypertables para estações cadastradas, chip ID único. Esse comportamento pode ser revisto no futuro.
     - **Como o produtor descobre os IDs (decidido):** a página HTML de configuração do gateway (firmware, TCC 1) exibe o ID do gateway e dos pluviômetros que ele ouve, **no mesmo formato do `hardwareId` da API** (minúsculas, mesmo prefixo, ex.: `gt-570db4`, `580db2`). Sem auto-cadastro via HTTP pelo firmware e sem tabela de dispositivos pendentes.
 - **Telemetria (hypertables):**
     - leituras de chuva (tópico `dados`), com deduplicação (PK com tempo; considerar `seq`);
@@ -312,4 +312,4 @@ O frontend será construído depois, também com o Claude, a partir do contrato 
 - Antes de mudanças grandes (novo módulo, mudança de schema, auth), propor um plano curto.
 - Mudança no protocolo MQTT ou no schema → atualizar este arquivo (ou `docs/`) no mesmo commit.
 - Conversar comigo e comentar em português; código, schema e contratos em inglês (ver "Idioma").
-- Feito: schema (V1/V2), entidades JPA, módulo de usuários, auth por sessão + CSRF, infra de erros, contrato OpenAPI, CRUD de gateways e estações com checagem de posse, estação favorita, consulta de telemetria e área pública. Pendências conhecidas: ajuste do worker ao novo schema (`docs/schema.md`), deploy na VPS (TODOs de infraestrutura), rate limit na área pública, decisões de TODO acima (domínios/CORS, TCC 4).
+- Feito: schema (V1/V2), entidades JPA, módulo de usuários, auth por sessão + CSRF, infra de erros, contrato OpenAPI, CRUD de gateways e estações com checagem de posse, estação favorita, consulta de telemetria e área pública. Worker adaptado ao V1 (`worker/`). Pendências conhecidas: itens em aberto do worker (`docs/schema.md`: faixa do timestamp, sessão MQTT persistente), deploy na VPS (TODOs de infraestrutura), rate limit na área pública, decisões de TODO acima (domínios/CORS, TCC 4).
