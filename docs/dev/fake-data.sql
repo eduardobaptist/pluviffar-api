@@ -10,6 +10,7 @@
 --   * 4 estações   2 públicas, 1 privada com localização, 1 privada sem localização
 --                  ("Sede - Pomar" é a favorita do produtor)
 --   * leituras a cada 15 min de 01/01/2025 até agora (zeros incluídos; chuva só em "eventos")
+--     com chuva garantida em 10, 13, 15 e 16/11/2026 (madrugada) em todas as estações
 --   * status a cada 1 h, histórico de conf (fw 1.0.0 → 1.1.0 em 15/06/2026)
 --   * falhas de comunicação propositais (buracos nas séries e saltos de seq)
 --
@@ -107,14 +108,28 @@ SELECT day,
        -- total do dia ~ exponencial (média ~17 mm), com chance de temporal
        least(-ln(1 - random()) * 17 * CASE WHEN random() < 0.05 THEN 3 ELSE 1 END, 160) AS total_mm,
        floor(random() * 22)::int   AS start_hour,
-       1 + floor(random() * 9)::int AS duration_h
+       1 + floor(random() * 9)::int AS duration_h,
+       false AS forced
 FROM generate_series(date '2025-01-01', current_date, interval '1 day') AS day;
+
+-- chuva garantida nos últimos dias (dashboard com dados em "hoje", 24 h e 7 dias)
+-- horários locais (America/Sao_Paulo); dias ainda não alcançados por now() ficam sem leitura
+UPDATE fake_region_day r
+SET rainy = true, forced = true, total_mm = f.total_mm, start_hour = f.start_hour, duration_h = f.duration_h
+FROM (VALUES
+    (date '2026-11-10', 12.0, 15, 3),  -- pancada de tarde
+    (date '2026-11-13', 38.0, 18, 5),  -- temporal no fim do dia
+    (date '2026-11-15', 22.0, 19, 5),  -- chuva à noite
+    (date '2026-11-16', 15.0,  2, 5)   -- madrugada de hoje (02h–07h)
+) AS f(day, total_mm, start_hour, duration_h)
+WHERE r.day = f.day;
 
 -- variação local por estação (chuva nunca é igual em todo lugar)
 CREATE TEMP TABLE fake_station_day ON COMMIT DROP AS
 SELECT s.id AS station_id,
        r.day::date AS day,
        CASE
+           WHEN r.forced THEN r.total_mm * (0.85 + random() * 0.30)                       -- dias garantidos: chove em todas
            WHEN r.rainy AND random() >= 0.08 THEN r.total_mm * (0.70 + random() * 0.60) -- 8%: a pancada não pegou aqui
            WHEN NOT r.rainy AND random() < 0.03 THEN 2 + random() * 8                    -- 3%: chuva isolada
            ELSE 0
