@@ -58,15 +58,24 @@ Chaves: `{gateway_id}` do tópico → `gateways.hardware_id`; `id` do payload �
 | `status` → `device_status` | `id`→`station_id` · tópico→`gateway_id` · `vbat`→`battery_v` · `bat`→`battery_pct` · `rssi_gt`→`rssi_gateway_dbm` · `rssi_pluv`→`rssi_station_dbm` · `uptime_gt_s`→`uptime_gateway_s` · `uptime_pluv_s`→`uptime_station_s` · `timestamp`→`measured_at` |
 | `conf` → estado atual + `config_reports` | `vers_gt`→`gateways.fw_version`/`fw_gateway` · `hw_gt`→`gateways.hw_version`/`hw_gateway` · `vers_pl`→`stations.fw_version`/`fw_station` · `hw_pl`→`stations.hw_version`/`hw_station` · `tempo_envio`→`send_interval_s` · `mm_tips`→`mm_per_tip` · `now()`→`config_reported_at`/`reported_at` |
 
-## O que muda para o worker (a implementar depois)
+## Worker (`worker/pluvio_worker.py`) — adaptado ao V1
 
-1. Assinar `pluviffar/+/dados|status|conf` (largar `pluvio/dados`).
-2. Fim do auto-cadastro: resolver gateway e estação por `hardware_id` (não excluídos); se desconhecido → descartar + log. Cache com TTL curto (1–5 min).
-3. Descartar se `stations.gateway_id` ≠ gateway do tópico.
+Detalhes de funcionamento em [`worker/resumo-worker.md`](../worker/resumo-worker.md).
+
+Feito:
+
+1. Assina `pluviffar/#` e aceita só `pluviffar/{gateway}/dados|status|conf` (o resto é descartado com log).
+2. Sem auto-cadastro: resolve gateway e estação por `hardware_id` (não excluídos, comparando em minúsculas); se desconhecido → descarta + log.
+3. Descarta se `stations.gateway_id` ≠ gateway do tópico.
 4. `dados`/`status` → `INSERT ... ON CONFLICT (station_id, measured_at) DO NOTHING`.
-5. `conf` → numa transação: `UPDATE` das colunas de config em `stations`/`gateways` e `INSERT` em `config_reports` se mudou algo.
-6. Validar timestamp (rejeitar < 2024-01-01 ou > agora + 10 min).
-7. Futuro: role `pluviffar_worker` com grants mínimos.
+5. `conf` → numa transação: `INSERT` em `config_reports` só se algo mudou em relação ao estado atual, e `UPDATE` das colunas de config em `stations`/`gateways` (sempre, para `config_reported_at` marcar o último conf).
+
+Ainda não feito:
+
+6. Validar a faixa do timestamp (rejeitar < 2024-01-01 ou > agora + 10 min). Hoje: sem timestamp ou ilegível → hora de chegada.
+7. Cache do lookup de cadastro (desnecessário no volume atual).
+8. Sessão MQTT persistente (hoje, mensagens publicadas com o worker fora do ar se perdem).
+9. Role `pluviffar_worker` com grants mínimos.
 
 ## Premissas a confirmar com o TCC 1
 

@@ -1,0 +1,24 @@
+[Unit]
+Description=Worker PluvIFFar (MQTT -> PostgreSQL)
+After=network-online.target mosquitto.service postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pluvio
+Group=pluvio
+WorkingDirectory=/opt/pluvio-worker
+EnvironmentFile=/opt/pluvio-worker/.env
+ExecStart=/opt/pluvio-worker/venv/bin/python -u /opt/pluvio-worker/pluvio_worker.py
+Restart=always
+RestartSec=5
+TimeoutStopSec=30
+
+# Endurecimento: o worker não precisa escrever em disco
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
